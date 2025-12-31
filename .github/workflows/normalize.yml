@@ -1,25 +1,33 @@
 name: Normalize GOLD
 
 on:
+  workflow_dispatch:
   push:
     paths:
-      - data/gold_sources.json
+      - work/raw_gold.json
+      - normalize.js
 
 jobs:
   normalize:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - run: node scripts/normalize.js
+      - name: Run normalize
+        run: |
+          node normalize.js
 
-      - run: |
-          git config user.name "collector-bot"
-          git config user.email "collector@bot"
-          git add data/nodes_normalized.json
-          git commit -m "normalize gold nodes" || exit 0
+      - name: Commit normalized nodes
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add work
+          git commit -m "normalize gold nodes" || echo "nothing to commit"
           git push
