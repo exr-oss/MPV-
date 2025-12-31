@@ -1,0 +1,22 @@
+{
+  "generated_at": "2025-12-31T15:34:06.497Z",
+  "total": 2,
+  "items": [
+    {
+      "id": "github_1",
+      "type": "subscription",
+      "url": "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt",
+      "latency": 38,
+      "size": 3371164,
+      "score": 100
+    },
+    {
+      "id": "github_3",
+      "type": "subscription",
+      "url": "https://raw.githubusercontent.com/peasoft/NoMoreWalls/master/list.txt",
+      "latency": 14,
+      "size": 49888,
+      "score": 80
+    }
+  ]
+}
