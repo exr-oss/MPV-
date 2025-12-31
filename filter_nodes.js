@@ -1,62 +1,101 @@
 import fs from "fs";
+import path from "path";
 
 const INPUT = "work/nodes.json";
 const OUTPUT = "work/nodes.filtered.json";
 
-// разрешённые протоколы (по приоритету)
-const ALLOWED_PROTOCOLS = [
-  "vless",
-  "trojan",
-  "hysteria2",
-  "shadowsocks",
-  "tuic"
-];
+/* ---------- helpers ---------- */
 
-// разрешённые страны
-const ALLOWED_COUNTRIES = [
-  "DE", "FI", "NL", // T1
-  "JP",             // T2
-  "PL", "CZ", "EE"  // extra
-];
-
-function loadJSON(path) {
-  return JSON.parse(fs.readFileSync(path, "utf-8"));
+function loadJSON(p) {
+  return JSON.parse(fs.readFileSync(p, "utf8"));
 }
 
-function saveJSON(path, data) {
-  fs.writeFileSync(path, JSON.stringify(data, null, 2));
+function saveJSON(p, data) {
+  fs.writeFileSync(p, JSON.stringify(data, null, 2));
+}
+
+/**
+ * Универсальный экстрактор нод
+ * Поддерживает:
+ *  - []
+ *  - { nodes: [] }
+ *  - { data: [] }
+ *  - { sourceA: [], sourceB: [] }
+ */
+function extractNodes(input) {
+  if (Array.isArray(input)) return input;
+
+  if (input && Array.isArray(input.nodes)) {
+    return input.nodes;
+  }
+
+  if (input && Array.isArray(input.data)) {
+    return input.data;
+  }
+
+  const collected = [];
+  if (input && typeof input === "object") {
+    for (const value of Object.values(input)) {
+      if (Array.isArray(value)) {
+        collected.push(...value);
+      }
+    }
+  }
+
+  return collected;
+}
+
+/* ---------- filtering ---------- */
+
+function isAllowedCountry(node) {
+  const cc = (node.country || node.cc || "").toUpperCase();
+  return [
+    "DE", // Germany
+    "FI", // Finland
+    "NL", // Netherlands
+    "PL", // Poland
+    "CZ", // Czechia
+    "EE", // Estonia
+    "JP"  // Japan
+  ].includes(cc);
+}
+
+function isAllowedProtocol(node) {
+  const p = (node.type || node.protocol || "").toLowerCase();
+  return ["vless", "trojan", "hysteria2", "hy2", "ss", "tuic"].includes(p);
 }
 
 function filterNodes(nodes) {
-  const result = [];
+  const out = [];
 
   for (const node of nodes) {
-    // protocol
-    if (!ALLOWED_PROTOCOLS.includes(node.protocol)) continue;
+    if (!node || typeof node !== "object") continue;
+    if (!isAllowedCountry(node)) continue;
+    if (!isAllowedProtocol(node)) continue;
 
-    // country
-    if (!ALLOWED_COUNTRIES.includes(node.country)) continue;
-
-    // source tag
-    if (node.source === "F0rc3Run") {
-      node.fax = true;
-    }
-
-    result.push(node);
+    out.push(node);
   }
 
-  return result;
+  return out;
 }
 
-// ---- RUN ----
-if (!fs.existsSync(INPUT)) {
-  console.error("❌ nodes.json not found");
+/* ---------- run ---------- */
+
+console.log("▶ Loading:", INPUT);
+
+const raw = loadJSON(INPUT);
+const nodes = extractNodes(raw);
+
+if (!Array.isArray(nodes)) {
+  console.error("❌ nodes is not iterable after extraction");
   process.exit(1);
 }
 
-const nodes = loadJSON(INPUT);
+console.log(`ℹ Extracted nodes: ${nodes.length}`);
+
 const filtered = filterNodes(nodes);
 
 saveJSON(OUTPUT, filtered);
 
-console.log(`✅ Filtered nodes: ${filtered.length}`);
+console.log(`✅ Filtered nodes saved: ${OUTPUT}`);
+console.log(`✅ Final count: ${filtered.length}`);
