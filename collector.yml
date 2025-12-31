@@ -1,1 +1,25 @@
+name: Collector Pull
 
+on:
+  schedule:
+    - cron: "0 */12 * * *"   # 2 раза в сутки
+  workflow_dispatch:
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch GOLD json from Worker
+        run: |
+          curl -s https://collector.zenyamail88.workers.dev/export/json \
+          -o raw/gold.json
+
+      - name: Commit update
+        run: |
+          git config user.name "collector-bot"
+          git config user.email "bot@github"
+          git add raw/gold.json
+          git commit -m "update gold sources" || echo "no changes"
+          git push
