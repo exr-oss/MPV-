@@ -1,39 +1,50 @@
-// apply_stickiness.js
-// INPUT : work/nodes.filtered.json
-// STATE : history/nodes.json
-// OUTPUT: work/nodes.sticky.json
+name: pipeline
 
-import fs from "fs";
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 */12 * * *"
 
-const NODES_FILE = "work/nodes.filtered.json";
-const HISTORY_FILE = "history/nodes.json";
-const OUT = "work/nodes.sticky.json";
+jobs:
+  run:
+    runs-on: ubuntu-latest
 
-if (!fs.existsSync(NODES_FILE)) {
-  console.error("❌ nodes.filtered.json not found");
-  process.exit(1);
-}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-const nodes = JSON.parse(fs.readFileSync(NODES_FILE, "utf-8"));
-const history = fs.existsSync(HISTORY_FILE)
-  ? JSON.parse(fs.readFileSync(HISTORY_FILE, "utf-8"))
-  : {};
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-for (const node of nodes) {
-  const id = node.id || node.name;
-  const h = history[id];
+      - name: Install deps
+        run: npm install || true
 
-  node.stable = h?.stable === true;
-  node.hits = h?.hits ?? 0;
-  node.misses = h?.misses ?? 0;
+      - name: Fetch gold.json from Worker
+        run: node scripts/fetch_gold.js
 
-  // Бонус за стабильность
-  node._sticky_bonus = node.stable ? 100 : 0;
-}
+      - name: Normalize
+        run: node scripts/normalize.js
 
-nodes.sort((a, b) =>
-  (b._sticky_bonus + b.hits) - (a._sticky_bonus + a.hits)
-);
+      - name: Update history
+        run: node scripts/update_history.js
 
-fs.writeFileSync(OUT, JSON.stringify(nodes, null, 2));
-console.log("✅ stickiness applied:", OUT);
+      # === ДОБАВЛЕНО ===
+      - name: Apply stickiness
+        run: node scripts/apply_stickiness.js
+      # =================
+
+      - name: Score v2
+        run: node scripts/score_v2.js
+
+      - name: Export Clash main.yaml
+        run: node scripts/export_clash.js
+
+      - name: Commit artifacts
+        run: |
+          git config user.name "actions"
+          git config user.email "actions@github.com"
+          git add work/ export/
+          git commit -m "update pipeline artifacts" || true
+          git push || true
