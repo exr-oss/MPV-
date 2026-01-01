@@ -1,0 +1,19 @@
+{
+  "status": "ok",
+  "last_run": {
+    "total": 6,
+    "ok": 3,
+    "by_type": {
+      "clash": {
+        "total": 3,
+        "ok": 0
+      },
+      "subscription": {
+        "total": 3,
+        "ok": 3
+      }
+    },
+    "time": "2026-01-01T01:33:14.442Z"
+  },
+  "time": "2026-01-01T13:31:32.396Z"
+}
