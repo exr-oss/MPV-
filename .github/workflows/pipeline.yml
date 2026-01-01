@@ -12,7 +12,7 @@ on:
 jobs:
   pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repo
@@ -26,60 +26,50 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Prepare work dir
-        run: mkdir -p work
-
-      # ===============================
-      # 1. Pull GOLD report from Worker
-      # ===============================
-      - name: Pull report from Cloudflare Worker
+      - name: Pull raw array from Cloudflare Worker
         run: |
           set -e
 
           WORKER_URL="https://collector.zenyamail88.workers.dev"
 
-          echo "[pull] Fetching $WORKER_URL/gold"
-          curl -fsSL "$WORKER_URL/gold" -o work/gold_raw.json
+          echo "[pull] Fetching $WORKER_URL/score"
+          mkdir -p work
+
+          curl -fsSL "$WORKER_URL/score" -o work/raw.json
 
           echo "[pull] Validate JSON"
-          test -s work/gold_raw.json
-          jq . work/gold_raw.json > /dev/null
+          test -s work/raw.json
+          jq . work/raw.json > /dev/null
 
           echo "[pull] OK"
 
-      # ===============================
-      # 2. Normalize (Node.js)
-      # ===============================
       - name: Normalize nodes
         run: |
           set -e
 
-          echo "[normalize] Start"
-          node scripts/normalize.js \
-            work/gold_raw.json \
-            work/nodes.normalized.json
+          echo "[normalize] Running normalize.js"
+          node scripts/normalize.js work/raw.json > work/nodes.normalized.json
 
-          echo "[normalize] Validate output"
           test -s work/nodes.normalized.json
           jq . work/nodes.normalized.json > /dev/null
 
           echo "[normalize] OK"
 
-      # ===============================
-      # 3. Commit artifacts (optional)
-      # ===============================
-      - name: Commit normalized nodes
+      - name: Export Clash config
         run: |
           set -e
 
-          git config user.name "pipeline"
-          git config user.email "pipeline@github"
+          echo "[export] Generating Clash config"
+          node scripts/export_clash.js work/nodes.normalized.json > work/main.yaml
 
-          git add work/nodes.normalized.json
+          test -s work/main.yaml
+          echo "[export] OK"
 
-          if git diff --cached --quiet; then
-            echo "[commit] No changes"
-          else
-            git commit -m "pipeline: normalize nodes"
-            git push
-          fi
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-output
+          path: |
+            work/raw.json
+            work/nodes.normalized.json
+            work/main.yaml
