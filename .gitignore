@@ -1,5 +1,5 @@
 # =========================
-# Runtime / temp
+# Runtime / temp (pipeline)
 # =========================
 work/
 .tmp/
@@ -25,18 +25,21 @@ pnpm-debug.log*
 *.secret
 *.key
 *.pem
+.dev.vars
 wrangler.toml
 .wrangler/
 
 # =========================
-# Cloudflare
+# Cloudflare Worker
 # =========================
-.dev.vars
 .cf/
 .history/
+workers/
+logs/
+*.log
 
 # =========================
-# Generated outputs
+# Generated outputs (non-prod)
 # =========================
 output/
 artifacts/
@@ -53,12 +56,6 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
-
-# =========================
-# Logs
-# =========================
-logs/
-*.log
 
 # =========================
 # Python (если появится)
