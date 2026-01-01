@@ -1,9 +1,9 @@
-name: MPV Full Pipeline
+name: pipeline
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "0 */6 * * *"   # каждые 6 часов
 
 jobs:
   pipeline:
@@ -18,73 +18,55 @@ jobs:
         with:
           node-version: 20
 
-      # -------------------------------------------------
-      # 1. Pull GOLD from Cloudflare Worker
-      # -------------------------------------------------
+      # ===============================
+      # 1. PULL GOLD FROM WORKER
+      # ===============================
       - name: Pull GOLD from Worker
         run: node scripts/pull_worker.js
 
-      # ожидается:
-      # work/raw_gold.json
-
-      # -------------------------------------------------
-      # 2. Parse GOLD (raw → structured)
-      # -------------------------------------------------
+      # ===============================
+      # 2. PARSE GOLD (subscription → nodes)
+      # ===============================
       - name: Parse GOLD nodes
         run: node scripts/parse_gold.js
 
-      # ожидается:
-      # work/gold.json
-
-      # -------------------------------------------------
-      # 3. Normalize (protocols, countries, format)
-      # -------------------------------------------------
+      # ===============================
+      # 3. NORMALIZE (protocols, fields)
+      # ===============================
       - name: Normalize GOLD
-        run: node normalize.js
+        run: node scripts/normalize_gold.js
 
-      # ожидается:
-      # work/nodes.json
-
-      # -------------------------------------------------
-      # 4. Filter nodes (protocols, countries, quality)
-      # -------------------------------------------------
+      # ===============================
+      # 4. FILTER (countries, protocols, quality)
+      # ===============================
       - name: Filter nodes
-        run: node filter_nodes.js
+        run: node scripts/filter_nodes.js
 
-      # ожидается:
-      # work/filtered_nodes.json
-
-      # -------------------------------------------------
-      # 5. Update history (KV-like history in repo)
-      # -------------------------------------------------
+      # ===============================
+      # 5. UPDATE HISTORY (KV / json)
+      # ===============================
       - name: Update history
         run: node scripts/update_history.js
 
-      # -------------------------------------------------
-      # 6. Apply stickiness (NO commit, work only)
-      # -------------------------------------------------
+      # ===============================
+      # 6. APPLY STICKINESS (NO COMMIT)
+      # ===============================
       - name: Apply stickiness
         run: node scripts/apply_stickiness.js
 
-      # ожидается:
-      # work/sticky_nodes.json
-
-      # -------------------------------------------------
-      # 7. Export → Clash Meta main.yaml
-      # -------------------------------------------------
+      # ===============================
+      # 7. EXPORT → Clash Meta main.yaml
+      # ===============================
       - name: Export Clash Meta
-        run: node export_clash.js
+        run: node scripts/export_clash.js
 
-      # ожидается:
-      # main.yaml (или export/main.yaml)
-
-      # -------------------------------------------------
-      # 8. Commit artifacts (ONLY final outputs)
-      # -------------------------------------------------
-      - name: Commit results
+      # ===============================
+      # 8. COMMIT RESULT (ONLY EXPORT)
+      # ===============================
+      - name: Commit Clash config
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add main.yaml work/_generated_at.txt || true
-          git commit -m "pipeline: update Clash Meta config" || true
+          git add output/main.yaml
+          git commit -m "update clash main.yaml" || echo "no changes"
           git push
