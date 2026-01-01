@@ -3,65 +3,60 @@ name: pipeline
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "0 */12 * * *"   # 2 раза в сутки
+  push:
+    paths:
+      - scripts/**
+      - .github/workflows/pipeline.yml
 
 jobs:
-  run:
+  build:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Install deps
         run: |
-          if [ -f package.json ]; then
-            npm install
-          fi
+          npm init -y >/dev/null 2>&1 || true
+          npm install js-yaml jq
 
-      # 1. Pull from Cloudflare Worker (RAW, как есть)
-      - name: Pull report from Worker
+      # 1️⃣ Pull GOLD from Worker (НЕ меняем воркер)
+      - name: Pull GOLD from Cloudflare Worker
         run: |
           set -e
           mkdir -p work
-          curl -fsSL https://collector.zenyamail88.workers.dev/report \
-            -o work/gold_raw.json
-          test -s work/gold_raw.json
+          WORKER_URL="https://collector.zenyamail88.workers.dev/export/json"
+          echo "[pull] $WORKER_URL"
+          curl -fsSL "$WORKER_URL" -o work/gold_raw.json
+          jq . work/gold_raw.json > /dev/null
+          echo "[pull] OK"
 
-      # 2. Bootstrap (определяет формат, приводит к контракту)
-      - name: Bootstrap
-        run: |
-          set -e
-          node scripts/bootstrap.js
-          test -s work/bootstrap.json
-          jq . work/bootstrap.json > /dev/null
-
-      # 3. Normalize (ТОЛЬКО GitHub-логика)
-      - name: Normalize
+      # 2️⃣ Normalize (GitHub = мозг)
+      - name: Normalize subscriptions
         run: |
           set -e
           node scripts/normalize.js
-          test -s work/nodes.normalized.json
-          jq . work/nodes.normalized.json > /dev/null
 
-      # 4. Export Clash Meta
+      # 3️⃣ Export Clash Meta main.yaml
       - name: Export Clash Meta
         run: |
           set -e
-          node export_clash.js
-          test -s output/main.yaml
+          node scripts/export_clash.js
+          test -s work/main.yaml
 
-      # 5. Commit result (только output/)
-      - name: Commit result
+      # 4️⃣ Commit RESULT only
+      - name: Commit main.yaml
         run: |
           set -e
           git config user.name "pipeline"
-          git config user.email "pipeline@users.noreply.github.com"
-          git add output/main.yaml
-          git commit -m "update: main.yaml" || echo "no changes"
+          git config user.email "pipeline@github"
+          git add work/main.yaml
+          git commit -m "auto: update main.yaml" || echo "no changes"
           git push
