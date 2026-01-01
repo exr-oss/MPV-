@@ -1,110 +1,34 @@
-name: VPN Aggregator Pipeline (production)
+name: Pipeline
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */6 * * *"   # каждые 6 часов
-
-concurrency:
-  group: vpn-aggregator
-  cancel-in-progress: true
+    - cron: "*/30 * * * *"
 
 jobs:
-  pipeline:
+  pull-report:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
 
     steps:
-      # =========================
-      # Checkout
-      # =========================
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # =========================
-      # Runtime
-      # =========================
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Prepare work dir
+      - name: Pull report from Cloudflare Worker
         run: |
-          rm -rf work
+          set -e
+
+          WORKER_URL="https://collector.zenyamail88.workers.dev"
+
+          echo "[pull] Fetching $WORKER_URL/report"
           mkdir -p work
 
-      # =========================
-      # Pull GOLD from Worker
-      # =========================
-      - name: Pull GOLD from Worker
-        run: |
-          curl -fsSL https://collector.zenyamail88.workers.dev/gold \
-            -o work/gold_raw.json
+          curl -fsSL "$WORKER_URL/report" -o work/gold_raw.json
 
-      - name: Validate GOLD payload
-        run: |
+          echo "[pull] Validate JSON"
           test -s work/gold_raw.json
-          jq type work/gold_raw.json
+          jq . work/gold_raw.json > /dev/null
 
-      # =========================
-      # Parse nodes
-      # =========================
-      - name: Parse GOLD nodes
-        run: |
-          node scripts/parse_gold.js \
-            work/gold_raw.json \
-            work/nodes_parsed.json
-
-      # =========================
-      # Normalize
-      # =========================
-      - name: Normalize nodes
-        run: |
-          node scripts/normalize.js \
-            work/nodes_parsed.json \
-            work/nodes_normalized.json
-
-      # =========================
-      # Baseline filter
-      # =========================
-      - name: Filter nodes (baseline)
-        run: |
-          node scripts/filter_nodes.js \
-            work/nodes_normalized.json \
-            work/nodes_filtered.json
-
-      # =========================
-      # Apply stickiness
-      # =========================
-      - name: Apply stickiness
-        run: node scripts/apply_stickiness.js
-
-      # =========================
-      # Export Clash Meta
-      # =========================
-      - name: Export Clash Meta config
-        run: |
-          node scripts/export_clash_meta.js \
-            work/nodes_filtered.json \
-            main.yaml
-
-      # =========================
-      # Sanity check
-      # =========================
-      - name: Validate main.yaml
-        run: |
-          test -s main.yaml
-          head -n 20 main.yaml
-
-      # =========================
-      # Commit result
-      # =========================
-      - name: Commit and push main.yaml
-        run: |
-          git config user.name "vpn-bot"
-          git config user.email "vpn-bot@users.noreply.github.com"
-
-          git add main.yaml
-          git diff --cached --quiet || git commit -m "update: main.yaml (auto)"
-          git push
+          echo "[pull] OK"
