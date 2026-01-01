@@ -1,12 +1,12 @@
 {
-  "generated_at": "2025-12-31T14:47:15.992Z",
+  "generated_at": "2026-01-01T04:17:17.797Z",
   "total": 3,
   "items": [
     {
       "id": "github_1",
       "type": "subscription",
       "url": "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt",
-      "latency": 55,
+      "latency": 74,
       "size": 3371164,
       "score": 100
     },
@@ -14,7 +14,7 @@
       "id": "github_2",
       "type": "subscription",
       "url": "https://raw.githubusercontent.com/zengfr/free-vpn-subscribe/main/vpn_sub_.txt",
-      "latency": 136,
+      "latency": 117,
       "size": 1359797,
       "score": 100
     },
@@ -22,8 +22,8 @@
       "id": "github_3",
       "type": "subscription",
       "url": "https://raw.githubusercontent.com/peasoft/NoMoreWalls/master/list.txt",
-      "latency": 16,
-      "size": 38040,
+      "latency": 43,
+      "size": 50456,
       "score": 80
     }
   ]
