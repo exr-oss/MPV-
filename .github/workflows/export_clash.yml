@@ -2,10 +2,10 @@ name: Export Clash Meta
 
 #on:
  # workflow_dispatch:
-  push:
-    paths:
-      - work/nodes.filtered.json
-      - export_clash.js
+  #push:
+    #paths:
+      #- work/nodes.filtered.json
+      #- export_clash.js
 
 jobs:
   export:
