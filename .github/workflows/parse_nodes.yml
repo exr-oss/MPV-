@@ -1,11 +1,11 @@
 name: Parse GOLD nodes
 
-on:
-  workflow_dispatch:
-  push:
-    paths:
-      - work/gold.json
-      - parse_nodes.js
+#on:
+ # workflow_dispatch:
+ # push:
+    #paths:
+      #- work/gold.json
+     # - parse_nodes.js
 
 jobs:
   parse:
