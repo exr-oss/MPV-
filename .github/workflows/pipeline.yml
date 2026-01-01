@@ -1,5 +1,9 @@
 name: Pipeline
 
+concurrency:
+  group: pipeline-main
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   schedule:
