@@ -1,18 +1,18 @@
-name: pipeline
+name: Pipeline
+
+concurrency:
+  group: pipeline-main
+  cancel-in-progress: true
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */12 * * *"   # 2 раза в сутки
-  push:
-    paths:
-      - pipeline.yml
-      - scripts/**
-      - export_clash.js
+    - cron: "*/30 * * * *"
 
 jobs:
-  run:
+  pipeline:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repo
@@ -23,21 +23,23 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install deps
-        run: npm ci || npm install
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
-      # =========================
-      # STEP 1 — pull from Worker
-      # =========================
+      - name: Prepare work dir
+        run: mkdir -p work
+
+      # ===============================
+      # 1. Pull GOLD report from Worker
+      # ===============================
       - name: Pull report from Cloudflare Worker
         run: |
           set -e
+
           WORKER_URL="https://collector.zenyamail88.workers.dev"
 
-          echo "[pull] Fetching $WORKER_URL/report"
-          mkdir -p work
-
-          curl -fsSL "$WORKER_URL/report" -o work/gold_raw.json
+          echo "[pull] Fetching $WORKER_URL/gold"
+          curl -fsSL "$WORKER_URL/gold" -o work/gold_raw.json
 
           echo "[pull] Validate JSON"
           test -s work/gold_raw.json
@@ -45,41 +47,39 @@ jobs:
 
           echo "[pull] OK"
 
-      # =========================
-      # STEP 2 — NORMALIZE
-      # =========================
-      - name: Normalize GOLD → nodes
-        run: node scripts/normalize.js
-
-      # =========================
-      # STEP 3 — sanity check
-      # =========================
-      - name: Validate normalized output
+      # ===============================
+      # 2. Normalize (Node.js)
+      # ===============================
+      - name: Normalize nodes
         run: |
           set -e
+
+          echo "[normalize] Start"
+          node scripts/normalize.js \
+            work/gold_raw.json \
+            work/nodes.normalized.json
+
+          echo "[normalize] Validate output"
           test -s work/nodes.normalized.json
           jq . work/nodes.normalized.json > /dev/null
+
           echo "[normalize] OK"
 
-      # =========================
-      # STEP 4 — export Clash Meta
-      # =========================
-      - name: Export Clash Meta main.yaml
-        run: node export_clash.js
-
-      # =========================
-      # STEP 5 — commit artifacts
-      # =========================
-      - name: Commit results
+      # ===============================
+      # 3. Commit artifacts (optional)
+      # ===============================
+      - name: Commit normalized nodes
         run: |
-          git config user.name "pipeline"
-          git config user.email "pipeline@users.noreply.github.com"
+          set -e
 
-          git add -f work/*.json export/main.yaml || true
+          git config user.name "pipeline"
+          git config user.email "pipeline@github"
+
+          git add work/nodes.normalized.json
 
           if git diff --cached --quiet; then
-            echo "No changes to commit"
+            echo "[commit] No changes"
           else
-            git commit -m "pipeline: update normalized nodes and main.yaml"
+            git commit -m "pipeline: normalize nodes"
             git push
           fi
