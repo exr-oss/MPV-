@@ -1,11 +1,11 @@
 name: Normalize GOLD
 
-on:
-  workflow_dispatch:
-  push:
-    paths:
-      - work/raw_gold.json
-      - normalize.js
+#on:
+ # workflow_dispatch:
+  #push:
+    #paths:
+      #- work/raw_gold.json
+     # - normalize.js
 
 jobs:
   normalize:
