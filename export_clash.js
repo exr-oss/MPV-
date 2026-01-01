@@ -1,154 +1,81 @@
 // export_clash.js
-// INPUT : work/nodes.filtered.json
-// OUTPUT: work/main.yaml
+// Генерация Clash Meta main.yaml из нормализованных proxy-нод
+// ВХОД: work/nodes.filtered.json
+// ВЫХОД: output/main.yaml
 
-import fs from "fs";
+const fs = require('fs');
+const path = require('path');
+const yaml = require('js-yaml');
 
-const INPUT = "work/nodes.filtered.json";
-const OUTPUT = "work/main.yaml";
+const INPUT = 'work/nodes.filtered.json';
+const OUTPUT_DIR = 'output';
+const OUTPUT_FILE = path.join(OUTPUT_DIR, 'main.yaml');
 
-/* ================= CONFIG ================= */
-
-const NETFLIX_COUNTRIES = ["DE", "NL", "PL", "CZ"];
-const CHATGPT_COUNTRIES = ["DE", "NL", "FI", "JP"];
-const GAMES_COUNTRIES = ["PL", "CZ", "EE", "DE"];
-
-/* ================= LOAD ================= */
-
+// --- guards ---
 if (!fs.existsSync(INPUT)) {
-  console.error("❌ nodes.filtered.json not found");
+  console.error('[export] input not found:', INPUT);
   process.exit(1);
 }
 
-const nodes = JSON.parse(fs.readFileSync(INPUT, "utf-8"));
+// --- read nodes ---
+const nodes = JSON.parse(fs.readFileSync(INPUT, 'utf8'));
 
-/* ================= GROUPS ================= */
+if (!Array.isArray(nodes) || nodes.length === 0) {
+  console.error('[export] no nodes to export');
+  process.exit(1);
+}
 
-const groups = {
-  AUTO: [],
-  NETFLIX: [],
-  CHATGPT: [],
-  GAMES: [],
-  INTERNET: [],
-  MANUAL: [],
+// --- ensure output dir ---
+fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+
+// --- build clash config ---
+const clashConfig = {
+  port: 7890,
+  'socks-port': 7891,
+  'mixed-port': 7892,
+  'allow-lan': true,
+  mode: 'rule',
+  'log-level': 'info',
+  ipv6: false,
+
+  dns: {
+    enable: true,
+    listen: '0.0.0.0:1053',
+    enhanced-mode: 'fake-ip',
+    nameserver: ['1.1.1.1', '8.8.8.8']
+  },
+
+  proxies: nodes,
+
+  'proxy-groups': [
+    {
+      name: 'AUTO',
+      type: 'url-test',
+      url: 'http://www.gstatic.com/generate_204',
+      interval: 300,
+      tolerance: 50,
+      proxies: nodes.map(n => n.name)
+    },
+    {
+      name: 'SELECT',
+      type: 'select',
+      proxies: ['AUTO', ...nodes.map(n => n.name)]
+    }
+  ],
+
+  rules: [
+    'DOMAIN-SUFFIX,netflix.com,SELECT',
+    'DOMAIN-SUFFIX,chatgpt.com,SELECT',
+    'MATCH,DIRECT'
+  ]
 };
 
-/* ================= PROXIES ================= */
+// --- write yaml ---
+const yamlText = yaml.dump(clashConfig, {
+  noRefs: true,
+  lineWidth: -1
+});
 
-const proxiesYaml = [];
+fs.writeFileSync(OUTPUT_FILE, yamlText, 'utf8');
 
-for (const node of nodes) {
-  if (!node || !node.name || !node.type) continue;
-
-  proxiesYaml.push(node.yaml);
-
-  const country = node.country || "";
-
-  groups.AUTO.push(node.name);
-  groups.INTERNET.push(node.name);
-  groups.MANUAL.push(node.name);
-
-  if (NETFLIX_COUNTRIES.includes(country)) {
-    groups.NETFLIX.push(node.name);
-  }
-
-  if (CHATGPT_COUNTRIES.includes(country)) {
-    groups.CHATGPT.push(node.name);
-  }
-
-  if (GAMES_COUNTRIES.includes(country)) {
-    groups.GAMES.push(node.name);
-  }
-}
-
-/* ================= YAML BUILD ================= */
-
-function yamlList(arr, indent = 6) {
-  return arr.map(v => " ".repeat(indent) + "- " + v).join("\n");
-}
-
-const yaml = `
-mixed-port: 7890
-allow-lan: true
-mode: rule
-log-level: info
-external-controller: 127.0.0.1:9090
-
-dns:
-  enable: true
-  ipv6: false
-  enhanced-mode: fake-ip
-  nameserver:
-    - 1.1.1.1
-    - 8.8.8.8
-
-proxies:
-${proxiesYaml.join("\n")}
-
-proxy-groups:
-  - name: PROXY
-    type: select
-    proxies:
-      - AUTO
-      - NETFLIX
-      - CHATGPT
-      - GAMES
-      - INTERNET
-      - MANUAL
-
-  - name: AUTO
-    type: url-test
-    url: http://www.gstatic.com/generate_204
-    interval: 300
-    tolerance: 50
-    proxies:
-${yamlList(groups.AUTO)}
-
-  - name: NETFLIX
-    type: fallback
-    url: https://www.netflix.com
-    interval: 300
-    proxies:
-${yamlList(groups.NETFLIX)}
-
-  - name: CHATGPT
-    type: fallback
-    url: https://chat.openai.com
-    interval: 300
-    proxies:
-${yamlList(groups.CHATGPT)}
-
-  - name: GAMES
-    type: url-test
-    url: https://www.roblox.com
-    interval: 300
-    tolerance: 80
-    proxies:
-${yamlList(groups.GAMES)}
-
-  - name: INTERNET
-    type: select
-    proxies:
-${yamlList(groups.INTERNET)}
-
-  - name: MANUAL
-    type: select
-    proxies:
-${yamlList(groups.MANUAL)}
-
-rules:
-  - DOMAIN-SUFFIX,netflix.com,NETFLIX
-  - DOMAIN-SUFFIX,nflxvideo.net,NETFLIX
-
-  - DOMAIN-SUFFIX,openai.com,CHATGPT
-  - DOMAIN-SUFFIX,chat.openai.com,CHATGPT
-
-  - DOMAIN-SUFFIX,roblox.com,GAMES
-
-  - MATCH,PROXY
-`.trim() + "\n";
-
-/* ================= SAVE ================= */
-
-fs.writeFileSync(OUTPUT, yaml);
-console.log("✅ main.yaml generated:", OUTPUT);
+console.log(`✅ main.yaml generated: ${OUTPUT_FILE}`);
