@@ -1,9 +1,9 @@
 name: Collector Pull
 
-on:
-  schedule:
-    - cron: "0 */12 * * *"   # 2 раза в сутки
-  workflow_dispatch:
+#on:
+  #schedule:
+   # - cron: "0 */12 * * *"   # 2 раза в сутки
+  #workflow_dispatch:
 
 jobs:
   pull:
