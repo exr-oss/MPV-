@@ -1,12 +1,12 @@
-name: pipeline
+name: pull-worker
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */6 * * *"   # каждые 6 часов
+    - cron: "*/30 * * * *"   # каждые 30 минут
 
 jobs:
-  pipeline:
+  pull:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,55 +18,10 @@ jobs:
         with:
           node-version: 20
 
-      # ===============================
-      # 1. PULL GOLD FROM WORKER
-      # ===============================
       - name: Pull GOLD from Worker
-        run: node scripts/pull_worker.js
-
-      # ===============================
-      # 2. PARSE GOLD (subscription → nodes)
-      # ===============================
-      - name: Parse GOLD nodes
-        run: node scripts/parse_gold.js
-
-      # ===============================
-      # 3. NORMALIZE (protocols, fields)
-      # ===============================
-      - name: Normalize GOLD
-        run: node scripts/normalize_gold.js
-
-      # ===============================
-      # 4. FILTER (countries, protocols, quality)
-      # ===============================
-      - name: Filter nodes
-        run: node scripts/filter_nodes.js
-
-      # ===============================
-      # 5. UPDATE HISTORY (KV / json)
-      # ===============================
-      - name: Update history
-        run: node scripts/update_history.js
-
-      # ===============================
-      # 6. APPLY STICKINESS (NO COMMIT)
-      # ===============================
-      - name: Apply stickiness
-        run: node scripts/apply_stickiness.js
-
-      # ===============================
-      # 7. EXPORT → Clash Meta main.yaml
-      # ===============================
-      - name: Export Clash Meta
-        run: node scripts/export_clash.js
-
-      # ===============================
-      # 8. COMMIT RESULT (ONLY EXPORT)
-      # ===============================
-      - name: Commit Clash config
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add output/main.yaml
-          git commit -m "update clash main.yaml" || echo "no changes"
-          git push
+          node scripts/pull_worker.js
+
+      - name: Validate gold.json
+        run: |
+          test -s work/gold.json
