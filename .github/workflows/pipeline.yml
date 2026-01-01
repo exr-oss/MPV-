@@ -1,75 +1,56 @@
-name: Pipeline
-
-concurrency:
-  group: pipeline-main
-  cancel-in-progress: true
+name: detect-worker-format
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "*/30 * * * *"
 
 jobs:
-  pipeline:
+  detect:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
 
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Pull raw array from Cloudflare Worker
+      - name: Pull raw data from Worker
         run: |
           set -e
-
-          WORKER_URL="https://collector.zenyamail88.workers.dev"
-
-          echo "[pull] Fetching $WORKER_URL/score"
+          WORKER_URL="https://collector.zenyamail88.workers.dev/gold"
           mkdir -p work
 
-          curl -fsSL "$WORKER_URL/score" -o work/raw.json
+          echo "[detect] Fetching $WORKER_URL"
+          curl -fsSL "$WORKER_URL" -o work/raw.txt || {
+            echo "[detect] curl failed"
+            exit 1
+          }
 
-          echo "[pull] Validate JSON"
-          test -s work/raw.json
-          jq . work/raw.json > /dev/null
+          echo "[detect] Raw preview:"
+          head -c 500 work/raw.txt || true
+          echo
 
-          echo "[pull] OK"
-
-      - name: Normalize nodes
+      - name: Detect format
         run: |
           set -e
+          RAW="work/raw.txt"
 
-          echo "[normalize] Running normalize.js"
-          node scripts/normalize.js work/raw.json > work/nodes.normalized.json
+          if jq -e 'type=="array"' "$RAW" >/dev/null 2>&1; then
+            echo "FORMAT=array"
+            exit 0
+          fi
 
-          test -s work/nodes.normalized.json
-          jq . work/nodes.normalized.json > /dev/null
+          if jq -e 'type=="object" and has("items") and (.items|type=="array")' "$RAW" >/dev/null 2>&1; then
+            echo "FORMAT=object.items"
+            exit 0
+          fi
 
-          echo "[normalize] OK"
+          if jq -e 'type=="object" and has("status")' "$RAW" >/dev/null 2>&1; then
+            echo "FORMAT=report/status"
+            exit 0
+          fi
 
-      - name: Export Clash config
-        run: |
-          set -e
-
-          echo "[export] Generating Clash config"
-          node scripts/export_clash.js work/nodes.normalized.json > work/main.yaml
-
-          test -s work/main.yaml
-          echo "[export] OK"
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: pipeline-output
-          path: |
-            work/raw.json
-            work/nodes.normalized.json
-            work/main.yaml
+          echo "FORMAT=invalid_or_html"
+          echo "----- RAW (first 300 chars) -----"
+          head -c 300 "$RAW" || true
+          exit 0
