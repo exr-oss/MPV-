@@ -1,37 +1,38 @@
-name: Pipeline
-
-concurrency:
-  group: pipeline-main
-  cancel-in-progress: true
+name: pipeline
 
 on:
-  workflow_dispatch:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "0 */12 * * *"   # 2 раза в сутки
+  workflow_dispatch:
 
 jobs:
-  pull-worker:
-    name: Pull GOLD from Cloudflare Worker
+  pull_and_prepare:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-      - name: Pull report from Worker
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Pull GOLD from Cloudflare Worker
         run: |
           set -e
 
-          WORKER_URL="https://collector.zenyamail88.workers.dev"
+          WORKER_URL="https://collector.zenyamail88.workers.dev/export/json"
 
-          echo "[pull] Fetching $WORKER_URL/report"
+          echo "[pull] Fetching $WORKER_URL"
           mkdir -p work
 
-          curl -fsSL "$WORKER_URL/report" -o work/gold_raw.json
+          curl -fL "$WORKER_URL" -o work/gold_raw.json
 
           echo "[pull] Validate JSON"
           test -s work/gold_raw.json
@@ -39,97 +40,11 @@ jobs:
 
           echo "[pull] OK"
 
-
-  parse_nodes:
-    name: Parse GOLD nodes
-    needs: pull-worker
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Validate input
+      - name: Commit GOLD snapshot
         run: |
-          set -e
-          test -s work/gold_raw.json
-          jq . work/gold_raw.json > /dev/null
+          git config user.name "pipeline"
+          git config user.email "pipeline@users.noreply.github.com"
 
-      - name: Parse nodes
-        run: |
-          node scripts/parse_nodes.js
-
-      - name: Validate output
-        run: |
-          set -e
-          test -s work/nodes.parsed.json
-          jq . work/nodes.parsed.json > /dev/null
-
-
-  filter:
-    name: Filter nodes
-    needs: parse_nodes
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Validate input
-        run: |
-          set -e
-          test -s work/nodes.parsed.json
-          jq . work/nodes.parsed.json > /dev/null
-
-      - name: Filter nodes
-        run: |
-          node scripts/filter.js
-
-      - name: Validate output
-        run: |
-          set -e
-          test -s work/nodes.filtered.json
-          jq . work/nodes.filtered.json > /dev/null
-
-
-  export_clash:
-    name: Export Clash Meta config
-    needs: filter
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Validate input
-        run: |
-          set -e
-          test -s work/nodes.filtered.json
-          jq . work/nodes.filtered.json > /dev/null
-
-      - name: Export main.yaml
-        run: |
-          node export_clash.js
-
-      - name: Validate output
-        run: |
-          set -e
-          test -s work/main.yaml
+          git add work/gold_raw.json
+          git commit -m "update: gold snapshot" || echo "no changes"
+          git push
