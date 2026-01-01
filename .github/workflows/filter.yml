@@ -1,11 +1,11 @@
 name: Filter Nodes
 
-on:
-  workflow_dispatch:
-  workflow_run:
-    workflows: ["Parse Nodes"]
-    types:
-      - completed
+#on:
+ # workflow_dispatch:
+ # workflow_run:
+   # workflows: ["Parse Nodes"]
+    #types:
+     # - completed
 
 jobs:
   filter:
