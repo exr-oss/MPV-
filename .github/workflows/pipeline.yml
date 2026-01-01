@@ -1,56 +1,67 @@
-name: detect-worker-format
+name: pipeline
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *"
 
 jobs:
-  detect:
+  run:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-      - name: Pull raw data from Worker
+      - name: Install deps
+        run: |
+          if [ -f package.json ]; then
+            npm install
+          fi
+
+      # 1. Pull from Cloudflare Worker (RAW, как есть)
+      - name: Pull report from Worker
         run: |
           set -e
-          WORKER_URL="https://collector.zenyamail88.workers.dev/gold"
           mkdir -p work
+          curl -fsSL https://collector.zenyamail88.workers.dev/report \
+            -o work/gold_raw.json
+          test -s work/gold_raw.json
 
-          echo "[detect] Fetching $WORKER_URL"
-          curl -fsSL "$WORKER_URL" -o work/raw.txt || {
-            echo "[detect] curl failed"
-            exit 1
-          }
-
-          echo "[detect] Raw preview:"
-          head -c 500 work/raw.txt || true
-          echo
-
-      - name: Detect format
+      # 2. Bootstrap (определяет формат, приводит к контракту)
+      - name: Bootstrap
         run: |
           set -e
-          RAW="work/raw.txt"
+          node scripts/bootstrap.js
+          test -s work/bootstrap.json
+          jq . work/bootstrap.json > /dev/null
 
-          if jq -e 'type=="array"' "$RAW" >/dev/null 2>&1; then
-            echo "FORMAT=array"
-            exit 0
-          fi
+      # 3. Normalize (ТОЛЬКО GitHub-логика)
+      - name: Normalize
+        run: |
+          set -e
+          node scripts/normalize.js
+          test -s work/nodes.normalized.json
+          jq . work/nodes.normalized.json > /dev/null
 
-          if jq -e 'type=="object" and has("items") and (.items|type=="array")' "$RAW" >/dev/null 2>&1; then
-            echo "FORMAT=object.items"
-            exit 0
-          fi
+      # 4. Export Clash Meta
+      - name: Export Clash Meta
+        run: |
+          set -e
+          node export_clash.js
+          test -s output/main.yaml
 
-          if jq -e 'type=="object" and has("status")' "$RAW" >/dev/null 2>&1; then
-            echo "FORMAT=report/status"
-            exit 0
-          fi
-
-          echo "FORMAT=invalid_or_html"
-          echo "----- RAW (first 300 chars) -----"
-          head -c 300 "$RAW" || true
-          exit 0
+      # 5. Commit result (только output/)
+      - name: Commit result
+        run: |
+          set -e
+          git config user.name "pipeline"
+          git config user.email "pipeline@users.noreply.github.com"
+          git add output/main.yaml
+          git commit -m "update: main.yaml" || echo "no changes"
+          git push
