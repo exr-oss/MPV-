@@ -10,13 +10,10 @@ on:
     - cron: "*/30 * * * *"
 
 jobs:
-  pull-report:
+  pull-worker:
+    name: Pull GOLD from Cloudflare Worker
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-#jobs:
-#  pull-report:
-   # runs-on: ubuntu-latest
+    timeout-minutes: 5
 
     steps:
       - name: Checkout repo
@@ -25,7 +22,7 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Pull report from Cloudflare Worker
+      - name: Pull report from Worker
         run: |
           set -e
 
@@ -41,3 +38,98 @@ jobs:
           jq . work/gold_raw.json > /dev/null
 
           echo "[pull] OK"
+
+
+  parse_nodes:
+    name: Parse GOLD nodes
+    needs: pull-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate input
+        run: |
+          set -e
+          test -s work/gold_raw.json
+          jq . work/gold_raw.json > /dev/null
+
+      - name: Parse nodes
+        run: |
+          node scripts/parse_nodes.js
+
+      - name: Validate output
+        run: |
+          set -e
+          test -s work/nodes.parsed.json
+          jq . work/nodes.parsed.json > /dev/null
+
+
+  filter:
+    name: Filter nodes
+    needs: parse_nodes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate input
+        run: |
+          set -e
+          test -s work/nodes.parsed.json
+          jq . work/nodes.parsed.json > /dev/null
+
+      - name: Filter nodes
+        run: |
+          node scripts/filter.js
+
+      - name: Validate output
+        run: |
+          set -e
+          test -s work/nodes.filtered.json
+          jq . work/nodes.filtered.json > /dev/null
+
+
+  export_clash:
+    name: Export Clash Meta config
+    needs: filter
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate input
+        run: |
+          set -e
+          test -s work/nodes.filtered.json
+          jq . work/nodes.filtered.json > /dev/null
+
+      - name: Export main.yaml
+        run: |
+          node export_clash.js
+
+      - name: Validate output
+        run: |
+          set -e
+          test -s work/main.yaml
