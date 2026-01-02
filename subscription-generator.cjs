@@ -14,12 +14,16 @@ const WORKER_URL =
   process.env.WORKER_URL ||
   "https://collector.zenyamail88.workers.dev/export/json";
 
+/* ===== MODE ===== */
+
+const IS_MANUAL = process.env.GITHUB_EVENT_NAME === "workflow_dispatch";
+
 /* ===== CONFIG ===== */
 
 // Приоритетные страны (ISO, hostname, emoji — всё ловим)
 const ALLOWED_COUNTRIES = ["DE", "NL", "FI", "PL", "CZ", "SE"];
 
-// Разрешённые протоколы (определяем по URI)
+// Разрешённые протоколы
 const ALLOWED_PROTOCOLS = [
   "vless",
   "trojan",
@@ -28,7 +32,7 @@ const ALLOWED_PROTOCOLS = [
   "tuic",
 ];
 
-// Пороги качества (если метрик нет — пропускаем)
+// Пороги качества
 const MAX_LATENCY = 800; // ms
 const MAX_LOSS = 0.2;    // 20%
 
@@ -56,6 +60,11 @@ function qualityAllowed(node) {
 
 async function run() {
   console.log("▶ Fetching worker:", WORKER_URL);
+  console.log(
+    IS_MANUAL
+      ? "▶ MANUAL RUN — force update enabled"
+      : "▶ SCHEDULE RUN"
+  );
 
   const res = await fetch(WORKER_URL);
   if (!res.ok) throw new Error(`Worker fetch failed: ${res.status}`);
@@ -76,12 +85,16 @@ async function run() {
 
   console.log(`✔ Nodes: ${nodes.length} → ${filtered.length}`);
 
+  let content;
+
   if (filtered.length === 0) {
-    console.warn("⚠ WARNING: filter result is empty");
+    console.warn("⚠ no url");
+    content = "no url";
+  } else {
+    content = filtered.map(n => n.uri).join("\n");
   }
 
-  const plain = filtered.map(n => n.uri).join("\n");
-  const base64 = Buffer.from(plain, "utf8").toString("base64");
+  const base64 = Buffer.from(content, "utf8").toString("base64");
 
   const outDir = path.join(process.cwd(), "dist");
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
