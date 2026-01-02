@@ -19,7 +19,7 @@ jobs:
           node-version: 18
 
       - name: Run generator
-        run: node subscription-generator.js
+        run: node subscription-generator.cjs
 
       - name: Commit result
         run: |
