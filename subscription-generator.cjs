@@ -1,7 +1,7 @@
 /**
  * subscription-generator.cjs
- * Diagnostic version (countries disabled)
- * Target: prove worker payload → subscription pipeline
+ * PASS-THROUGH generator for NekoBox
+ * Worker provides SUBSCRIPTION URLS (not proxy nodes)
  */
 
 const fs = require("fs");
@@ -12,43 +12,6 @@ const path = require("path");
 const WORKER_URL =
   process.env.WORKER_URL ||
   "https://collector.zenyamail88.workers.dev/export/json";
-
-/* ===== CONFIG ===== */
-
-// ❗ Страны ОТКЛЮЧЕНЫ для диагностики
-// const ALLOWED_COUNTRIES = ["DE", "NL", "FI", "PL", "CZ", "SE"];
-
-const ALLOWED_PROTOCOLS = [
-  "vless",
-  "trojan",
-  "hysteria2",
-  "shadowsocks",
-  "tuic",
-];
-
-const MAX_LATENCY = 800;
-const MAX_LOSS = 0.2;
-
-/* ===== FILTERS ===== */
-
-function countryAllowed(_) {
-  return true; // ⬅️ ВАЖНО: временно отключено
-}
-
-function protocolAllowed(node) {
-  if (typeof node.uri !== "string") return false;
-  return ALLOWED_PROTOCOLS.some(p =>
-    node.uri.toLowerCase().startsWith(p + "://")
-  );
-}
-
-function qualityAllowed(node) {
-  if (typeof node.latency === "number" && node.latency > MAX_LATENCY)
-    return false;
-  if (typeof node.loss === "number" && node.loss > MAX_LOSS)
-    return false;
-  return true;
-}
 
 /* ===== MAIN ===== */
 
@@ -62,27 +25,19 @@ async function run() {
   if (!json || !Array.isArray(json.items))
     throw new Error("Invalid worker format: expected { items: [] }");
 
-  const nodes = json.items;
+  const items = json.items;
 
-  console.log("▶ Sample nodes (first 5):");
-  console.log(nodes.slice(0, 5));
+  const urls = items
+    .filter(i => i.type === "subscription" && typeof i.url === "string")
+    .map(i => i.url);
 
-  const filtered = nodes.filter(n =>
-    n &&
-    typeof n.uri === "string" &&
-    protocolAllowed(n) &&
-    countryAllowed(n) &&
-    qualityAllowed(n)
-  );
-
-  console.log(`✔ Nodes: ${nodes.length} → ${filtered.length}`);
+  console.log(`✔ Subscriptions: ${items.length} → ${urls.length}`);
 
   let outputText;
-  if (filtered.length === 0) {
-    console.warn("⚠ No nodes after filtering");
-    outputText = "no url";
+  if (urls.length === 0) {
+    outputText = `no url\n# updated: ${new Date().toISOString()}`;
   } else {
-    outputText = filtered.map(n => n.uri).join("\n");
+    outputText = urls.join("\n");
   }
 
   const base64 = Buffer.from(outputText, "utf8").toString("base64");
