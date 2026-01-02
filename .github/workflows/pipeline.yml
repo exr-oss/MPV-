@@ -46,3 +46,16 @@ jobs:
           git add export/main.yaml
           git commit -m "auto: update main.yaml" || true
           git push
+
+      - name: Export Clash + TXT
+        run: |
+          node scripts/export_clash.js
+          node scripts/export_txt.js
+
+      - name: Commit result
+        run: |
+          git config user.name "pipeline"
+          git config user.email "pipeline@github"
+          git add export/main.yaml export/subscription.txt
+          git commit -m "auto: update clash yaml & txt" || true
+          git push
