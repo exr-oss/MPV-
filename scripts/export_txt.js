@@ -1,8 +1,3 @@
-// scripts/export_txt.js
-// SOURCE: export/main.yaml
-// OUTPUT: export/subscription.txt
-// PURPOSE: universal subscription (.txt) for v2rayNG / NekoBox / sing-box
-
 import fs from "fs";
 import path from "path";
 import YAML from "yaml";
@@ -52,7 +47,7 @@ for (const p of cfg.proxies) {
       break;
     }
 
-    case "shadowsocks": {
+    case "ss": {
       const userinfo = Buffer.from(
         `${p.cipher}:${p.password}`
       ).toString("base64");
@@ -62,7 +57,7 @@ for (const p of cfg.proxies) {
       break;
     }
 
-    case "hysteria2": {
+    case "hy2": {
       const params = new URLSearchParams({
         sni: p.sni || "",
         insecure: p.skipCertVerify ? "1" : "0"
@@ -87,10 +82,9 @@ for (const p of cfg.proxies) {
     }
 
     default:
-      // unsupported protocol → ignore
       break;
   }
 }
 
 fs.writeFileSync(OUT_TXT, lines.join("\n"), "utf8");
-console.log(`OK: ${lines.length} nodes → export/subscription.txt`);
+console.log(`OK: ${lines.length} nodes`);
