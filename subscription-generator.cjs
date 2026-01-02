@@ -1,8 +1,7 @@
 /**
  * subscription-generator.cjs
- * Final adaptive generator for NekoBox
- * Source: Cloudflare Worker /export/json
- * Node.js 18+, GitHub Actions ready
+ * Diagnostic version (countries disabled)
+ * Target: prove worker payload → subscription pipeline
  */
 
 const fs = require("fs");
@@ -14,16 +13,11 @@ const WORKER_URL =
   process.env.WORKER_URL ||
   "https://collector.zenyamail88.workers.dev/export/json";
 
-/* ===== MODE ===== */
-
-const IS_MANUAL = process.env.GITHUB_EVENT_NAME === "workflow_dispatch";
-
 /* ===== CONFIG ===== */
 
-// Приоритетные страны (ISO, hostname, emoji — всё ловим)
-const ALLOWED_COUNTRIES = ["DE", "NL", "FI", "PL", "CZ", "SE"];
+// ❗ Страны ОТКЛЮЧЕНЫ для диагностики
+// const ALLOWED_COUNTRIES = ["DE", "NL", "FI", "PL", "CZ", "SE"];
 
-// Разрешённые протоколы
 const ALLOWED_PROTOCOLS = [
   "vless",
   "trojan",
@@ -32,20 +26,20 @@ const ALLOWED_PROTOCOLS = [
   "tuic",
 ];
 
-// Пороги качества
-const MAX_LATENCY = 800; // ms
-const MAX_LOSS = 0.2;    // 20%
+const MAX_LATENCY = 800;
+const MAX_LOSS = 0.2;
 
 /* ===== FILTERS ===== */
 
-function countryAllowed(node) {
-  const text = `${node.country || ""} ${node.tag || ""} ${node.uri || ""}`.toUpperCase();
-  return ALLOWED_COUNTRIES.some(c => text.includes(c));
+function countryAllowed(_) {
+  return true; // ⬅️ ВАЖНО: временно отключено
 }
 
 function protocolAllowed(node) {
   if (typeof node.uri !== "string") return false;
-  return ALLOWED_PROTOCOLS.some(p => node.uri.startsWith(p + "://"));
+  return ALLOWED_PROTOCOLS.some(p =>
+    node.uri.toLowerCase().startsWith(p + "://")
+  );
 }
 
 function qualityAllowed(node) {
@@ -60,11 +54,6 @@ function qualityAllowed(node) {
 
 async function run() {
   console.log("▶ Fetching worker:", WORKER_URL);
-  console.log(
-    IS_MANUAL
-      ? "▶ MANUAL RUN — force update enabled"
-      : "▶ SCHEDULE RUN"
-  );
 
   const res = await fetch(WORKER_URL);
   if (!res.ok) throw new Error(`Worker fetch failed: ${res.status}`);
@@ -74,6 +63,9 @@ async function run() {
     throw new Error("Invalid worker format: expected { items: [] }");
 
   const nodes = json.items;
+
+  console.log("▶ Sample nodes (first 5):");
+  console.log(nodes.slice(0, 5));
 
   const filtered = nodes.filter(n =>
     n &&
@@ -85,16 +77,15 @@ async function run() {
 
   console.log(`✔ Nodes: ${nodes.length} → ${filtered.length}`);
 
-  let content;
-
+  let outputText;
   if (filtered.length === 0) {
-    console.warn("⚠ no url");
-    content = "no url";
+    console.warn("⚠ No nodes after filtering");
+    outputText = "no url";
   } else {
-    content = filtered.map(n => n.uri).join("\n");
+    outputText = filtered.map(n => n.uri).join("\n");
   }
 
-  const base64 = Buffer.from(content, "utf8").toString("base64");
+  const base64 = Buffer.from(outputText, "utf8").toString("base64");
 
   const outDir = path.join(process.cwd(), "dist");
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
@@ -102,7 +93,7 @@ async function run() {
   const outFile = path.join(outDir, "subscription.txt");
   fs.writeFileSync(outFile, base64);
 
-  console.log("✔ Done:", outFile);
+  console.log("✔ Written:", outFile);
 }
 
 /* ===== EXEC ===== */
