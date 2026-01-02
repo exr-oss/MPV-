@@ -1,30 +1,37 @@
 /**
  * subscription-generator.cjs
- * Aggressive Netflix + ChatGPT + Roblox filter
- * Output: Base64 subscription for NekoBox
+ * FINAL APPLY VERSION
+ * Aggressive service-aware generator for NekoBox
+ * Source: Cloudflare Worker /export/json
+ * Node.js 18+, GitHub Actions ready
  */
 
 const fs = require("fs");
 const path = require("path");
 
+/* ===== SOURCE ===== */
+
 const WORKER_URL =
   process.env.WORKER_URL ||
   "https://collector.zenyamail88.workers.dev/export/json";
 
-/* ===== HARD FILTER CONFIG ===== */
+/* ===== CONFIG ===== */
 
+// приоритетные страны (fallback разрешён)
 const ALLOWED_COUNTRIES = ["DE", "NL", "FI", "SE", "PL", "CZ"];
 
+// разрешённые протоколы
 const ALLOWED_PROTOCOLS = [
   "vless",
   "trojan",
   "hysteria2",
-  "tuic",
   "shadowsocks",
+  "tuic",
 ];
 
-const MAX_LATENCY = 450; // general cap
-const MAX_LOSS = 0.05;   // 5%
+// базовые пороги
+const MAX_LATENCY = 800; // ms
+const MAX_LOSS = 0.2;    // 20%
 
 /* ===== HELPERS ===== */
 
@@ -32,16 +39,17 @@ function textOf(n) {
   return `${n.country || ""} ${n.tag || ""} ${n.uri || ""}`.toLowerCase();
 }
 
+/* ===== FILTERS ===== */
+
 function protocolAllowed(n) {
-  return (
-    typeof n.uri === "string" &&
-    ALLOWED_PROTOCOLS.some(p => n.uri.startsWith(p + "://"))
-  );
+  if (typeof n.uri !== "string") return false;
+  return ALLOWED_PROTOCOLS.some(p => n.uri.startsWith(p + "://"));
 }
 
+// КРИТИЧНО: если страны нет — пропускаем
 function countryAllowed(n) {
-  const t = textOf(n).toUpperCase();
-  return ALLOWED_COUNTRIES.some(c => t.includes(c));
+  if (!n.country) return true;
+  return ALLOWED_COUNTRIES.includes(n.country.toUpperCase());
 }
 
 function qualityAllowed(n) {
@@ -50,53 +58,56 @@ function qualityAllowed(n) {
   return true;
 }
 
-/* ===== SERVICE FILTERS ===== */
+/* ===== SERVICE HEURISTICS ===== */
 
+// Netflix — чистота + стабильность
 function netflixAllowed(n) {
+  if (typeof n.latency === "number" && n.latency > 500) return false;
+  if (typeof n.loss === "number" && n.loss > 0.03) return false;
+
   const t = textOf(n);
-  return (
-    t.includes("netflix") ||
-    t.includes("nf") ||
-    t.includes("stream") ||
-    t.includes("residential")
-  );
+  if (
+    t.includes("cdn") ||
+    t.includes("edu") ||
+    t.includes("trial") ||
+    t.includes("free")
+  ) return false;
+
+  return true;
 }
 
+// ChatGPT — чистый egress, без CDN/прокси-следов
 function chatgptAllowed(n) {
   const t = textOf(n);
-  return (
-    !t.includes("free") &&
-    !t.includes("trial") &&
-    !t.includes("iran") &&
-    !t.includes("ru") &&
-    !t.includes("cn") &&
-    !t.includes("cdn")
-  );
+  if (
+    t.includes("cdn") ||
+    t.includes("cloudflare") ||
+    t.includes("ws") ||
+    t.includes("grpc")
+  ) return false;
+
+  if (typeof n.latency === "number" && n.latency > 600) return false;
+  if (typeof n.loss === "number" && n.loss > 0.05) return false;
+
+  return true;
 }
 
+// Roblox — игровая эвристика (НЕ по словам)
 function robloxAllowed(n) {
   const t = textOf(n);
 
-  // exclusions first
+  // жёсткие исключения
   if (
     t.includes("cdn") ||
-    t.includes("ws") ||
-    t.includes("grpc") ||
     t.includes("cloudflare") ||
-    t.includes("cf")
+    t.includes("ws") ||
+    t.includes("grpc")
   ) return false;
 
-  // latency tighter for games
-  if (typeof n.latency === "number" && n.latency > 250) return false;
+  if (typeof n.latency === "number" && n.latency > 280) return false;
+  if (typeof n.loss === "number" && n.loss > 0.02) return false;
 
-  return (
-    t.includes("roblox") ||
-    t.includes("game") ||
-    t.includes("gaming") ||
-    t.includes("udp") ||
-    t.includes("direct") ||
-    t.includes("low")
-  );
+  return true;
 }
 
 /* ===== MAIN ===== */
@@ -105,11 +116,11 @@ async function run() {
   console.log("▶ Fetching worker:", WORKER_URL);
 
   const res = await fetch(WORKER_URL);
-  if (!res.ok) throw new Error("Worker fetch failed");
+  if (!res.ok) throw new Error(`Worker fetch failed: ${res.status}`);
 
   const json = await res.json();
   if (!json || !Array.isArray(json.items))
-    throw new Error("Invalid worker format");
+    throw new Error("Invalid worker format: expected { items: [] }");
 
   const nodes = json.items;
 
@@ -119,25 +130,36 @@ async function run() {
     protocolAllowed(n) &&
     countryAllowed(n) &&
     qualityAllowed(n) &&
-    (netflixAllowed(n) || chatgptAllowed(n) || robloxAllowed(n))
+    (
+      netflixAllowed(n) ||
+      chatgptAllowed(n) ||
+      robloxAllowed(n)
+    )
   );
 
   console.log(`✔ Nodes: ${nodes.length} → ${filtered.length}`);
 
-  const output =
-    filtered.length === 0
-      ? "NO_URL"
-      : Buffer.from(filtered.map(n => n.uri).join("\n")).toString("base64");
-
   const outDir = path.join(process.cwd(), "dist");
-  fs.mkdirSync(outDir, { recursive: true });
+  if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
-  fs.writeFileSync(path.join(outDir, "subscription.txt"), output);
+  const outFile = path.join(outDir, "subscription.txt");
 
-  console.log("✔ Written dist/subscription.txt");
+  if (filtered.length === 0) {
+    console.warn("⚠ NO_URL: no nodes passed aggressive filters");
+    fs.writeFileSync(outFile, "", "utf8");
+    return;
+  }
+
+  const plain = filtered.map(n => n.uri).join("\n");
+  const base64 = Buffer.from(plain, "utf8").toString("base64");
+
+  fs.writeFileSync(outFile, base64, "utf8");
+  console.log("✔ Written:", outFile);
 }
 
-run().catch(e => {
-  console.error("✖ ERROR:", e.message);
+/* ===== EXEC ===== */
+
+run().catch(err => {
+  console.error("✖ ERROR:", err.message);
   process.exit(1);
 });
