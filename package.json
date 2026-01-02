@@ -1,12 +1,17 @@
-// package.json
 {
   "name": "vpn-aggregator",
+  "version": "1.0.0",
   "private": true,
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
-    "pipeline": "node scripts/bootstrap.js && node scripts/pull_worker.js && node scripts/normalize.js && node scripts/filter.js && node scripts/score.js && node scripts/apply_stickiness.js && node scripts/history.js && node scripts/export_clash.js"
+    "pull": "node scripts/pull_worker.js",
+    "normalize": "node scripts/normalize.js",
+    "filter": "node scripts/filter.js",
+    "score": "node scripts/score.js",
+    "stickiness": "node scripts/apply_stickiness.js",
+    "export": "node scripts/export_clash.js"
   },
   "dependencies": {
-    "yaml": "^2.4.5"
+    "js-yaml": "^4.1.0"
   }
 }
