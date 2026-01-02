@@ -1,122 +1,98 @@
 /**
  * subscription-generator.cjs
- * FINAL Normalize v2
- *
- * Flow:
- * Worker (/export/json)
- *   → subscription URLs
- *   → fetch each subscription
- *   → decode base64 if needed
- *   → extract proxy URIs
- *   → deduplicate
- *   → output base64 for NekoBox
- *
- * Node.js 18+
+ * Strict server-only generator (RESTORED FILTERS)
+ * Node.js 18+, GitHub Actions
  */
 
 const fs = require("fs");
 const path = require("path");
 
-/* ===== SOURCE ===== */
+/* ================= SOURCE ================= */
 
 const WORKER_URL =
   process.env.WORKER_URL ||
   "https://collector.zenyamail88.workers.dev/export/json";
 
-/* ===== SETTINGS ===== */
+/* ================= FILTERS ================= */
 
+// допустимые страны (ищем в tag / country / uri)
+const ALLOWED_COUNTRIES = ["DE", "NL", "FI", "PL", "CZ", "SE"];
+
+// допустимые протоколы
 const ALLOWED_PROTOCOLS = [
   "vless://",
   "trojan://",
-  "ss://",
   "hysteria2://",
-  "hy2://",
+  "ss://",
   "tuic://",
 ];
 
-/* ===== HELPERS ===== */
+// hard sanity
+const MIN_URI_LENGTH = 20;
 
-function looksLikeBase64(text) {
-  return /^[A-Za-z0-9+/=\r\n]+$/.test(text.trim());
-}
+/* ================= HELPERS ================= */
 
-function extractUris(text) {
-  const lines = text.split(/\r?\n/);
-  return lines.filter(line =>
-    ALLOWED_PROTOCOLS.some(p => line.startsWith(p))
+function isServerNode(n) {
+  return (
+    n &&
+    typeof n.uri === "string" &&
+    n.uri.length > MIN_URI_LENGTH &&
+    ALLOWED_PROTOCOLS.some(p => n.uri.startsWith(p))
   );
 }
 
-/* ===== MAIN ===== */
+function countryAllowed(n) {
+  const text = `${n.country || ""} ${n.tag || ""} ${n.uri || ""}`.toUpperCase();
+  return ALLOWED_COUNTRIES.some(c => text.includes(c));
+}
+
+/* ================= MAIN ================= */
 
 async function run() {
-  console.log("▶ Fetch worker:", WORKER_URL);
+  console.log("▶ Fetching:", WORKER_URL);
 
   const res = await fetch(WORKER_URL);
-  if (!res.ok) throw new Error(`Worker fetch failed: ${res.status}`);
+  if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
 
-  const json = await res.json();
-  if (!json || !Array.isArray(json.items))
-    throw new Error("Invalid worker format");
+  const data = await res.json();
+  if (!data || !Array.isArray(data.items))
+    throw new Error("Invalid format: expected { items: [] }");
 
-  const subs = json.items
-    .filter(i => i.type === "subscription" && typeof i.url === "string")
-    .map(i => i.url);
+  const all = data.items;
 
-  console.log(`✔ Subscriptions: ${subs.length}`);
+  console.log("▶ Total items:", all.length);
 
-  let allNodes = [];
+  // 🔥 КЛЮЧЕВОЕ: берём ТОЛЬКО реальные серверы
+  const servers = all.filter(isServerNode);
 
-  for (const url of subs) {
-    try {
-      console.log("▶ Fetch sub:", url);
-      const r = await fetch(url, { redirect: "follow" });
-      if (!r.ok) continue;
+  console.log("▶ Server nodes:", servers.length);
 
-      let text = await r.text();
-      text = text.trim();
+  const filtered = servers.filter(countryAllowed);
 
-      // decode base64 if needed
-      if (looksLikeBase64(text) && !text.includes("://")) {
-        try {
-          text = Buffer.from(text, "base64").toString("utf8");
-        } catch {}
-      }
-
-      const nodes = extractUris(text);
-      console.log(`  ↳ nodes: ${nodes.length}`);
-      allNodes.push(...nodes);
-    } catch (e) {
-      console.warn("  ⚠ failed:", url);
-    }
-  }
-
-  // deduplicate
-  const uniqueNodes = Array.from(new Set(allNodes));
-
-  console.log(`✔ Total nodes: ${uniqueNodes.length}`);
-
-  let outputText;
-  if (uniqueNodes.length === 0) {
-    outputText = `no url\n# updated: ${new Date().toISOString()}`;
-  } else {
-    outputText = uniqueNodes.join("\n");
-  }
-
-  const base64 = Buffer.from(outputText, "utf8").toString("base64");
+  console.log(`✔ After country filter: ${filtered.length}`);
 
   const outDir = path.join(process.cwd(), "dist");
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
   const outFile = path.join(outDir, "subscription.txt");
+
+  if (filtered.length === 0) {
+    console.warn("⚠ NO SERVER URLS");
+    fs.writeFileSync(outFile, "NO_URL\n");
+    return;
+  }
+
+  const plain = filtered.map(n => n.uri).join("\n");
+  const base64 = Buffer.from(plain, "utf8").toString("base64");
+
   fs.writeFileSync(outFile, base64);
 
   console.log("✔ Written:", outFile);
 }
 
-/* ===== EXEC ===== */
+/* ================= EXEC ================= */
 
 run().catch(err => {
-  console.error("✖ ERROR:", err);
+  console.error("✖ ERROR:", err.message);
   process.exit(1);
 });
