@@ -1,9 +1,11 @@
+// scripts/score.js
 import fs from "fs";
 
-const nodes = JSON.parse(fs.readFileSync("work/nodes.filtered.json", "utf8"));
+const data = JSON.parse(fs.readFileSync("work/filtered.json"));
 
-for (const n of nodes) {
-  n.score = 100;
-}
+const scored = data.map(i => ({
+  ...i,
+  tier: i.score >= 95 ? "DIAMOND" : "GOLD"
+}));
 
-fs.writeFileSync("work/nodes.scored.json", JSON.stringify(nodes, null, 2));
+fs.writeFileSync("work/scored.json", JSON.stringify(scored, null, 2));
