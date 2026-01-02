@@ -1,47 +1,35 @@
-name: pipeline
+# .github/workflows/pipeline.yml
+name: vpn-pipeline
 
 on:
-  schedule:
-    - cron: "0 */12 * * *"
   workflow_dispatch:
+  schedule:
+    - cron: "0 */6 * * *"
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install deps
-        run: npm install yaml
+      - run: npm ci
 
-      - name: Pull GOLD from Worker
-        run: node scripts/pull_worker.js
+      - run: node scripts/bootstrap.js
+      - run: node scripts/pull_worker.js
+      - run: node scripts/normalize.js
+      - run: node scripts/filter.js
+      - run: node scripts/score.js
+      - run: node scripts/apply_stickiness.js
+      - run: node scripts/history.js
+      - run: node scripts/export_clash.js
 
-      - name: Normalize
-        run: node scripts/normalize.js
-
-      - name: Filter
-        run: node scripts/filter.js
-
-      - name: Score
-        run: node scripts/score.js
-
-      - name: Apply stickiness
-        run: node scripts/apply_stickiness.js
-
-      - name: Export Clash Meta
-        run: node scripts/export_clash.js
-
-      - name: Commit result
-        run: |
+      - run: |
           git config user.name "pipeline"
-          git config user.email "pipeline@github"
-          git add export/main.yaml
-          git commit -m "update main.yaml" || true
+          git config user.email "pipeline@local"
+          git add export/main.yaml work/history.json
+          git commit -m "auto: update main.yaml" || true
           git push || true
