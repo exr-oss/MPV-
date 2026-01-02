@@ -1,65 +1,22 @@
-# =========================
-# Runtime / temp (pipeline)
-# =========================
+# runtime
 work/
 .tmp/
-.temp/
 .cache/
-dist/
-build/
 
-# =========================
-# Node / JS
-# =========================
+# node
 node_modules/
 npm-debug.log*
-yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
 
-# =========================
-# Env / secrets
-# =========================
+# secrets
 .env
 .env.*
-*.secret
-*.key
-*.pem
 .dev.vars
-wrangler.toml
-.wrangler/
 
-# =========================
-# Cloudflare Worker
-# =========================
-.cf/
-.history/
-workers/
-logs/
-*.log
+# generated
+export/main.yaml
 
-# =========================
-# Generated outputs (non-prod)
-# =========================
-output/
-artifacts/
-reports/
-*.json.tmp
-*.yaml.tmp
-
-# =========================
-# OS / editor
-# =========================
+# os/editor
 .DS_Store
-Thumbs.db
 .idea/
 .vscode/
-*.swp
-*.swo
-
-# =========================
-# Python (если появится)
-# =========================
-__pycache__/
-*.pyc
-.venv/
