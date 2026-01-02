@@ -2,7 +2,7 @@
   "name": "vpn-aggregator",
   "version": "1.0.0",
   "private": true,
-  "type": "commonjs",
+  "type": "module",
   "scripts": {
     "pull": "node scripts/pull_worker.js",
     "normalize": "node scripts/normalize.js",
