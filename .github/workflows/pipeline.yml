@@ -1,4 +1,3 @@
-# .github/workflows/pipeline.yml
 name: VPN Aggregator Pipeline
 
 on:
@@ -11,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -19,50 +18,31 @@ jobs:
         with:
           node-version: 20
 
-      # 1. Pull GOLD list from Cloudflare Worker
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
       - name: Pull GOLD list from Worker
-        run: |
-          set -e
-          mkdir -p work
-          node scripts/pull_worker.js
+        run: node scripts/pull_worker.js
 
-      # 2. Normalize subscriptions → proxy nodes
-      - name: Normalize
-        run: |
-          set -e
-          node scripts/normalize.js
+      - name: Normalize subscriptions
+        run: node scripts/normalize.js
 
-      # 3. Filter nodes (protocols / countries / tiers)
-      - name: Filter
-        run: |
-          set -e
-          node scripts/filter.js
+      - name: Filter nodes
+        run: node scripts/filter.js
 
-      # 4. Score nodes
-      - name: Score
-        run: |
-          set -e
-          node scripts/score.js
+      - name: Score nodes
+        run: node scripts/score.js
 
-      # 5. Apply stickiness (runtime only)
       - name: Apply stickiness
-        run: |
-          set -e
-          node scripts/apply_stickiness.js
+        run: node scripts/apply_stickiness.js
 
-      # 6. Export Clash Meta config
-      - name: Export Clash Meta main.yaml
-        run: |
-          set -e
-          mkdir -p export
-          node scripts/export_clash.js
+      - name: Export Clash Meta config
+        run: node scripts/export_clash.js
 
-      # 7. Commit generated config
-      - name: Commit export
+      - name: Commit generated config
         run: |
-          set -e
           git config user.name "pipeline"
           git config user.email "pipeline@github"
           git add export/main.yaml
-          git commit -m "auto: update Clash Meta main.yaml" || echo "No changes"
+          git commit -m "auto: update main.yaml" || echo "no changes"
           git push
