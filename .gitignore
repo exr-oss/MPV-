@@ -1,22 +1,27 @@
-# runtime
+# =========================
+# Runtime (STRICT)
+# =========================
 work/
-.tmp/
-.cache/
 
-# node
+# =========================
+# Dependencies
+# =========================
 node_modules/
-npm-debug.log*
-yarn-error.log*
 
-# secrets
-.env
-.env.*
-.dev.vars
-
-# generated
+# =========================
+# Generated artifacts
+# =========================
 export/main.yaml
 
-# os/editor
+# =========================
+# Temporary / cache
+# =========================
+*.tmp
+*.log
+
+# =========================
+# OS / Editors
+# =========================
 .DS_Store
 .idea/
 .vscode/
