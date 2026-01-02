@@ -3,10 +3,6 @@ proxies:
     type: http
     server: https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt
     port: 443
-  - name: github_2
-    type: http
-    server: https://raw.githubusercontent.com/zengfr/free-vpn-subscribe/main/vpn_sub_.txt
-    port: 443
   - name: github_3
     type: http
     server: https://raw.githubusercontent.com/peasoft/NoMoreWalls/master/list.txt
