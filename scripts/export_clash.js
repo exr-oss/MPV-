@@ -1,55 +1,27 @@
 import fs from "fs";
-import yaml from "js-yaml";
+import YAML from "yaml";
 
-const INPUT = "work/nodes.filtered.json";
-const OUTPUT = "work/main.yaml";
+const nodes = JSON.parse(fs.readFileSync("work/nodes.final.json", "utf8"));
 
-if (!fs.existsSync(INPUT)) {
-  console.error("[export] nodes.filtered.json not found");
-  process.exit(1);
-}
+const proxies = nodes.map((n, i) => ({
+  name: `NODE_${i}`,
+  type: "ss",
+  server: "0.0.0.0",
+  port: 443,
+  cipher: "aes-128-gcm",
+  password: "password"
+}));
 
-const nodes = JSON.parse(fs.readFileSync(INPUT, "utf8"));
-
-const clash = {
+const cfg = {
   port: 7890,
   "socks-port": 7891,
-  "allow-lan": true,
   mode: "rule",
-  "log-level": "info",
-
-  dns: {
-    enable: true,
-    listen: "0.0.0.0:53",
-    "enhanced-mode": "fake-ip",
-    "fake-ip-range": "198.18.0.1/16",
-    nameserver: ["1.1.1.1", "8.8.8.8"],
-  },
-
-  proxies: nodes,
-
+  proxies,
   "proxy-groups": [
-    {
-      name: "AUTO",
-      type: "url-test",
-      url: "http://www.gstatic.com/generate_204",
-      interval: 300,
-      tolerance: 50,
-      proxies: nodes.map((n) => n.name),
-    },
+    { name: "AUTO", type: "select", proxies: proxies.map(p => p.name) }
   ],
-
-  rules: [
-    "DOMAIN-SUFFIX,openai.com,AUTO",
-    "DOMAIN-SUFFIX,netflix.com,AUTO",
-    "MATCH,AUTO",
-  ],
+  rules: ["MATCH,AUTO"]
 };
 
-const yamlText = yaml.dump(clash, {
-  noRefs: true,
-  lineWidth: -1,
-});
-
-fs.writeFileSync(OUTPUT, yamlText);
-console.log("✅ main.yaml generated:", OUTPUT);
+fs.mkdirSync("export", { recursive: true });
+fs.writeFileSync("export/main.yaml", YAML.stringify(cfg));
