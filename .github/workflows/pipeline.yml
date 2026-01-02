@@ -1,5 +1,5 @@
 # .github/workflows/pipeline.yml
-name: vpn-pipeline
+name: VPN Aggregator Pipeline
 
 on:
   workflow_dispatch:
@@ -9,27 +9,60 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - run: npm ci
+      # 1. Pull GOLD list from Cloudflare Worker
+      - name: Pull GOLD list from Worker
+        run: |
+          set -e
+          mkdir -p work
+          node scripts/pull_worker.js
 
-      - run: node scripts/bootstrap.js
-      - run: node scripts/pull_worker.js
-      - run: node scripts/normalize.js
-      - run: node scripts/filter.js
-      - run: node scripts/score.js
-      - run: node scripts/apply_stickiness.js
-      - run: node scripts/history.js
-      - run: node scripts/export_clash.js
+      # 2. Normalize subscriptions → proxy nodes
+      - name: Normalize
+        run: |
+          set -e
+          node scripts/normalize.js
 
-      - run: |
+      # 3. Filter nodes (protocols / countries / tiers)
+      - name: Filter
+        run: |
+          set -e
+          node scripts/filter.js
+
+      # 4. Score nodes
+      - name: Score
+        run: |
+          set -e
+          node scripts/score.js
+
+      # 5. Apply stickiness (runtime only)
+      - name: Apply stickiness
+        run: |
+          set -e
+          node scripts/apply_stickiness.js
+
+      # 6. Export Clash Meta config
+      - name: Export Clash Meta main.yaml
+        run: |
+          set -e
+          mkdir -p export
+          node scripts/export_clash.js
+
+      # 7. Commit generated config
+      - name: Commit export
+        run: |
+          set -e
           git config user.name "pipeline"
-          git config user.email "pipeline@local"
-          git add export/main.yaml work/history.json
-          git commit -m "auto: update main.yaml" || true
-          git push || true
+          git config user.email "pipeline@github"
+          git add export/main.yaml
+          git commit -m "auto: update Clash Meta main.yaml" || echo "No changes"
+          git push
