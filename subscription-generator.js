@@ -1,40 +1,74 @@
-// MODE: ARCHITECT // Single-file subscription generator // Source: Cloudflare Worker (JSON export) // Output: Base64 subscription for NekoBox // Auto-update ready (GitHub Actions compatible)
+// subscription-generator.js
+// Single-file generator for NekoBox
+// Source: Cloudflare Worker /export/json
 
-import fs from 'fs'; import https from 'https';
+import fs from "fs";
+import path from "path";
 
-// ================= CONFIG ================= const WORKER_URL = 'https://YOUR_WORKER.workers.dev/export/json'; const OUTPUT_FILE = 'dist/subscription.txt';
+const WORKER_URL =
+  process.env.WORKER_URL ||
+  "https://collector.zenyamail88.workers.dev/export/json";
 
-// Allowed countries (ISO / keywords) const ALLOWED_COUNTRIES = ['DE', 'NL', 'FI', 'PL', 'CZ', 'FR'];
+/* ===== CONFIG ===== */
 
-// Protocol priority const ALLOWED_PROTOCOLS = ['vless', 'trojan', 'hysteria2', 'shadowsocks', 'tuic'];
+const ALLOWED_COUNTRIES = ["DE", "NL", "FI", "PL", "CZ", "SE"];
+const ALLOWED_PROTOCOLS = ["vless", "trojan", "hysteria2", "shadowsocks", "tuic"];
 
-// Quality thresholds const MAX_LATENCY = 350; // ms const MAX_LOSS = 0.05;   // 5%
+const MAX_LATENCY = 800; // ms
+const MAX_LOSS = 0.2;    // 20%
 
-// ================= HELPERS ================= function fetchJSON(url) { return new Promise((resolve, reject) => { https.get(url, res => { let data = ''; res.on('data', chunk => (data += chunk)); res.on('end', () => { try { resolve(JSON.parse(data)); } catch (e) { reject(e); } }); }).on('error', reject); }); }
+/* ===== FILTERS ===== */
 
-function countryAllowed(node) { const text = ${node.country || ''} ${node.tag || ''}.toUpperCase(); return ALLOWED_COUNTRIES.some(c => text.includes(c)); }
+function countryAllowed(node) {
+  const text = `${node.country || ""} ${node.tag || ""}`.toUpperCase();
+  return ALLOWED_COUNTRIES.some(c => text.includes(c));
+}
 
-function protocolAllowed(node) { return ALLOWED_PROTOCOLS.includes(node.protocol); }
+function protocolAllowed(node) {
+  return ALLOWED_PROTOCOLS.includes((node.protocol || "").toLowerCase());
+}
 
-function qualityAllowed(node) { return node.latency <= MAX_LATENCY && node.loss <= MAX_LOSS; }
+function qualityAllowed(node) {
+  if (typeof node.latency === "number" && node.latency > MAX_LATENCY) return false;
+  if (typeof node.loss === "number" && node.loss > MAX_LOSS) return false;
+  return true;
+}
 
-function toURI(node) { return node.uri; }
+/* ===== MAIN ===== */
 
-function toBase64(lines) { return Buffer.from(lines.join('\n')).toString('base64'); }
+async function main() {
+  console.log("Fetching worker:", WORKER_URL);
 
-// ================= MAIN ================= (async () => { try { const data = await fetchJSON(WORKER_URL);
+  const res = await fetch(WORKER_URL);
+  if (!res.ok) throw new Error(`Worker fetch failed: ${res.status}`);
 
-const nodes = data
-  .filter(protocolAllowed)
-  .filter(countryAllowed)
-  .filter(qualityAllowed)
-  .map(toURI);
+  const json = await res.json();
+  if (!Array.isArray(json.items))
+    throw new Error("Invalid worker format: items[] missing");
 
-const base64 = toBase64(nodes);
+  const nodes = json.items;
 
-fs.mkdirSync('dist', { recursive: true });
-fs.writeFileSync(OUTPUT_FILE, base64);
+  const filtered = nodes.filter(
+    n =>
+      typeof n.uri === "string" &&
+      protocolAllowed(n) &&
+      countryAllowed(n) &&
+      qualityAllowed(n)
+  );
 
-console.log(`OK: ${nodes.length} nodes written`);
+  console.log(`Nodes: ${nodes.length} → ${filtered.length}`);
 
-} catch (e) { console.error('FAILED:', e.message); process.exit(1); } })();
+  const content = filtered.map(n => n.uri).join("\n");
+  const base64 = Buffer.from(content).toString("base64");
+
+  const outDir = path.join(process.cwd(), "dist");
+  if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+
+  fs.writeFileSync(path.join(outDir, "subscription.txt"), base64);
+  console.log("OK → dist/subscription.txt");
+}
+
+main().catch(err => {
+  console.error(err);
+  process.exit(1);
+});
