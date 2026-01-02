@@ -1,9 +1,9 @@
-name: VPN Aggregator Pipeline
+name: VPN Pipeline
 
 on:
-  workflow_dispatch:
   schedule:
-    - cron: "0 */6 * * *"
+    - cron: "0 */12 * * *"   # 2 раза в сутки
+  workflow_dispatch:
 
 jobs:
   build:
@@ -13,36 +13,75 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install deps
-        run: npm install --no-audit --no-fund
-
-      - name: Pull GOLD from Worker
-        run: node scripts/pull_worker.js
-
-      - name: Normalize
-        run: node scripts/normalize.js
-
-      - name: Filter
-        run: node scripts/filter.js
-
-      - name: Score
-        run: node scripts/score.js
-
-      - name: Stickiness
-        run: node scripts/apply_stickiness.js
-
-      - name: Export Clash
-        run: node scripts/export_clash.js
-
-      - name: Commit result
+      # 1. Pull GOLD list from Cloudflare Worker
+      - name: Pull from Worker (/export/json)
         run: |
+          set -e
+          mkdir -p work
+          curl -fsSL https://collector.zenyamail88.workers.dev/export/json \
+            -o work/gold.json
+          test -s work/gold.json
+          jq . work/gold.json > /dev/null
+
+      # 2. Bootstrap (фиксирует формат входа)
+      - name: Bootstrap
+        run: |
+          set -e
+          node scripts/bootstrap.js
+
+      # 3. Normalize (subscription -> proxy nodes)
+      - name: Normalize
+        run: |
+          set -e
+          node scripts/normalize.js
+
+      # 4. Filter (protocols / countries / tiers)
+      - name: Filter
+        run: |
+          set -e
+          node scripts/filter.js
+
+      # 5. Score
+      - name: Score
+        run: |
+          set -e
+          node scripts/score.js
+
+      # 6. Update history (статистика во времени)
+      - name: Update history
+        run: |
+          set -e
+          node scripts/history.js
+
+      # 7. Apply stickiness
+      - name: Apply stickiness
+        run: |
+          set -e
+          node scripts/apply_stickiness.js
+
+      # 8. Export Clash Meta / Nekobox
+      - name: Export Clash main.yaml
+        run: |
+          set -e
+          node scripts/export_clash.js
+
+      # 9. Export v2rayNG / sing-box subscription
+      - name: Export subscription txt
+        run: |
+          set -e
+          node scripts/export_txt.js
+
+      # 10. Commit ONLY export results
+      - name: Commit exports
+        run: |
+          set -e
           git config user.name "pipeline"
           git config user.email "pipeline@github"
-          git add export/main.yaml
-          git commit -m "auto: update main.yaml" || true
+          git add export/
+          git commit -m "update exports" || echo "no changes"
           git push
