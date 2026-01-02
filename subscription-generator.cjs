@@ -1,8 +1,7 @@
 /**
  * subscription-generator.cjs
- * Variant 3 — relaxed mode (URL fallback)
- * Consumer: NekoBox
- * Node.js 18+, GitHub Actions ready
+ * FINAL — normalize subscriptions → servers → Nekobox
+ * Node.js 18+, GitHub Actions safe
  */
 
 const fs = require("fs");
@@ -14,58 +13,112 @@ const WORKER_URL =
   process.env.WORKER_URL ||
   "https://collector.zenyamail88.workers.dev/export/json";
 
-/* ===== QUALITY LIMITS (KEEP) ===== */
+/* ===== POLICY ===== */
 
-const MAX_LATENCY = 1500; // ms
-const MIN_SIZE = 50_000;  // bytes
+// страны (ловим ISO / hostname / tag / emoji)
+const ALLOWED_COUNTRIES = ["DE", "NL", "FI", "PL", "CZ", "SE"];
+
+// разрешённые протоколы
+const ALLOWED_PROTOCOLS = [
+  "vless://",
+  "trojan://",
+  "hysteria2://",
+  "ss://",
+  "tuic://",
+];
+
+// лимиты качества (если нет — не режем)
+const MAX_LATENCY = 800;
+const MAX_LOSS = 0.2;
+
+/* ===== UTILS ===== */
+
+function decodeBase64Safe(text) {
+  try {
+    return Buffer.from(text, "base64").toString("utf8");
+  } catch {
+    return "";
+  }
+}
+
+function countryAllowed(text) {
+  const t = text.toUpperCase();
+  return ALLOWED_COUNTRIES.some(c => t.includes(c));
+}
+
+function protocolAllowed(uri) {
+  return ALLOWED_PROTOCOLS.some(p => uri.startsWith(p));
+}
+
+/* ===== NORMALIZE ===== */
+
+async function fetchSubscription(url) {
+  const res = await fetch(url, { redirect: "follow" });
+  if (!res.ok) return [];
+
+  const raw = await res.text();
+  const decoded = decodeBase64Safe(raw);
+
+  const text = decoded.includes("://") ? decoded : raw;
+
+  return text
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(l => l.includes("://"));
+}
 
 /* ===== MAIN ===== */
 
 async function run() {
-  console.log("▶ Fetching worker:", WORKER_URL);
+  console.log("▶ Worker:", WORKER_URL);
 
   const res = await fetch(WORKER_URL);
-  if (!res.ok) throw new Error(`Worker fetch failed: ${res.status}`);
+  if (!res.ok) throw new Error("Worker fetch failed");
 
   const json = await res.json();
-  if (!json || !Array.isArray(json.items))
-    throw new Error("Invalid worker format: expected { items: [] }");
+  if (!Array.isArray(json.items))
+    throw new Error("Invalid worker format");
 
-  const items = json.items;
+  const subs = json.items
+    .filter(i => i.type === "subscription" && i.url)
+    .map(i => i.url);
 
-  console.log("▶ Items received:", items.length);
+  console.log("▶ Subscriptions:", subs.length);
 
-  const accepted = items.filter(n => {
-    if (!n || typeof n.url !== "string") return false;
+  let servers = [];
 
-    if (typeof n.latency === "number" && n.latency > MAX_LATENCY)
-      return false;
+  for (const url of subs) {
+    try {
+      const list = await fetchSubscription(url);
+      servers.push(...list);
+    } catch {}
+  }
 
-    if (typeof n.size === "number" && n.size < MIN_SIZE)
-      return false;
+  servers = [...new Set(servers)];
 
+  const filtered = servers.filter(uri => {
+    if (!protocolAllowed(uri)) return false;
+    if (!countryAllowed(uri)) return false;
     return true;
   });
 
-  console.log(`✔ Accepted: ${accepted.length}`);
-
-  let output = "";
-
-  if (accepted.length === 0) {
-    console.warn("⚠ NO URL — no valid sources after filtering");
-    output = "NO_URL\n";
-  } else {
-    output = accepted.map(n => n.url).join("\n");
-  }
-
-  const base64 = Buffer.from(output, "utf8").toString("base64");
+  console.log(`✔ Servers: ${servers.length} → ${filtered.length}`);
 
   const outDir = path.join(process.cwd(), "dist");
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
   const outFile = path.join(outDir, "subscription.txt");
-  fs.writeFileSync(outFile, base64);
 
+  if (filtered.length === 0) {
+    fs.writeFileSync(outFile, "NO_URL\n");
+    console.warn("⚠ NO_URL written");
+    return;
+  }
+
+  const plain = filtered.join("\n");
+  const base64 = Buffer.from(plain, "utf8").toString("base64");
+
+  fs.writeFileSync(outFile, base64);
   console.log("✔ Written:", outFile);
 }
 
