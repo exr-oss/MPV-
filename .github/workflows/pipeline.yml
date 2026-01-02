@@ -1,21 +1,16 @@
 name: pipeline
 
 on:
-  workflow_dispatch:
   schedule:
-    - cron: "0 */12 * * *"   # 2 раза в сутки
-  push:
-    paths:
-      - scripts/**
-      - .github/workflows/pipeline.yml
+    - cron: "0 */12 * * *"
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -23,40 +18,30 @@ jobs:
           node-version: 20
 
       - name: Install deps
-        run: |
-          npm init -y >/dev/null 2>&1 || true
-          npm install js-yaml jq
+        run: npm install yaml
 
-      # 1️⃣ Pull GOLD from Worker (НЕ меняем воркер)
-      - name: Pull GOLD from Cloudflare Worker
-        run: |
-          set -e
-          mkdir -p work
-          WORKER_URL="https://collector.zenyamail88.workers.dev/export/json"
-          echo "[pull] $WORKER_URL"
-          curl -fsSL "$WORKER_URL" -o work/gold_raw.json
-          jq . work/gold_raw.json > /dev/null
-          echo "[pull] OK"
+      - name: Pull GOLD from Worker
+        run: node scripts/pull_worker.js
 
-      # 2️⃣ Normalize (GitHub = мозг)
-      - name: Normalize subscriptions
-        run: |
-          set -e
-          node scripts/normalize.js
+      - name: Normalize
+        run: node scripts/normalize.js
 
-      # 3️⃣ Export Clash Meta main.yaml
+      - name: Filter
+        run: node scripts/filter.js
+
+      - name: Score
+        run: node scripts/score.js
+
+      - name: Apply stickiness
+        run: node scripts/apply_stickiness.js
+
       - name: Export Clash Meta
-        run: |
-          set -e
-          node scripts/export_clash.js
-          test -s work/main.yaml
+        run: node scripts/export_clash.js
 
-      # 4️⃣ Commit RESULT only
-      - name: Commit main.yaml
+      - name: Commit result
         run: |
-          set -e
           git config user.name "pipeline"
           git config user.email "pipeline@github"
-          git add work/main.yaml
-          git commit -m "auto: update main.yaml" || echo "no changes"
-          git push
+          git add export/main.yaml
+          git commit -m "update main.yaml" || true
+          git push || true
