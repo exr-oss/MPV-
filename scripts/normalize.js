@@ -1,17 +1,13 @@
+// scripts/normalize.js
 import fs from "fs";
 
-const raw = JSON.parse(fs.readFileSync("work/gold.json", "utf8"));
+const raw = JSON.parse(fs.readFileSync("work/worker_raw.json"));
 
-const nodes = [];
+const normalized = raw.map(i => ({
+  id: i.id,
+  url: i.url,
+  protocol: "subscription",
+  score: i.score
+}));
 
-for (const src of raw) {
-  nodes.push({
-    source: src.id,
-    url: src.url,
-    protocol: "unknown",
-    country: "unknown",
-    raw: true
-  });
-}
-
-fs.writeFileSync("work/nodes.normalized.json", JSON.stringify(nodes, null, 2));
+fs.writeFileSync("work/normalized.json", JSON.stringify(normalized, null, 2));
