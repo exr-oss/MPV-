@@ -15,9 +15,19 @@ jobs:
 
       - name: Fetch subscription from Worker
         run: |
+          set -e
           mkdir -p dist
           curl -fsSL https://collector-b.zenyamail88.workers.dev/export/json \
             | jq -r '.items[]' > dist/subscription.txt
+
+      - name: Debug subscription
+        run: |
+          echo "Lines:"
+          wc -l dist/subscription.txt
+          echo "SHA256:"
+          sha256sum dist/subscription.txt
+          echo "Preview:"
+          head -n 5 dist/subscription.txt
 
       - name: Commit and push if changed
         run: |
