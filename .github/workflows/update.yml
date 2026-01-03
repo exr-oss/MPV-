@@ -2,7 +2,7 @@ name: Update subscription
 
 on:
   schedule:
-    - cron: "0 3 * * *"   # 1 раз в сутки, 03:00 UTC
+    - cron: "0 3 * * *"   # раз в сутки
   workflow_dispatch:
 
 jobs:
@@ -10,27 +10,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - name: Run generator
+      - name: Generate
         run: node subscription-generator.cjs
 
-      - name: Commit result
+      - name: Commit
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add dist/subscription.txt
-
-          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            git commit --allow-empty -m "manual update"
-          else
-            git commit -m "daily update" || echo "no changes"
-          fi
-
+          git commit -m "daily update" || echo "no changes"
           git push
