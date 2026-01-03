@@ -1,8 +1,13 @@
 /**
  * subscription-generator.cjs
- * FINAL FILE VERSION (variant 3)
- * Works with subscription-only Worker (/export/json)
- * Output: Base64 subscription for NekoBox
+ * FINAL ADAPTED VERSION
+ *
+ * Source: Cloudflare Worker (/export/json)
+ * Output: Base64 subscription (NekoBox / v2rayNG compatible)
+ *
+ * Architecture:
+ * Worker = execution / aggregation
+ * GitHub = filtering / generation
  */
 
 const fs = require("fs");
@@ -12,14 +17,14 @@ const path = require("path");
 
 const WORKER_URL =
   process.env.WORKER_URL ||
-  "https://collector.zenyamail88.workers.dev/export/json";
+  "https://collector-b.zenyamail88.workers.dev/export/json";
 
 /* ===== CONFIG ===== */
 
-// Приоритетные страны (если нет country — разрешаем)
+// Разрешённые страны (если country отсутствует — допускаем)
 const ALLOWED_COUNTRIES = ["DE", "NL", "FI", "SE", "PL", "CZ"];
 
-// Протоколы (для URI; для URL не применяются)
+// Разрешённые протоколы (только для URI)
 const ALLOWED_PROTOCOLS = [
   "vless",
   "trojan",
@@ -28,7 +33,7 @@ const ALLOWED_PROTOCOLS = [
   "tuic",
 ];
 
-// Базовые пороги качества источника
+// Пороги качества (мягкие, fail-safe ниже)
 const MAX_LATENCY = 900; // ms
 const MIN_SCORE = 60;
 
@@ -38,7 +43,7 @@ function textOf(n) {
   return `${n.country || ""} ${n.tag || ""} ${n.url || ""} ${n.uri || ""}`.toLowerCase();
 }
 
-// КЛЮЧЕВОЕ: извлекаем endpoint
+// Извлечение конечной точки (URI или URL)
 function extractEndpoint(n) {
   if (typeof n.uri === "string" && n.uri.includes("://")) return n.uri;
   if (typeof n.url === "string" && n.url.startsWith("http")) return n.url;
@@ -47,7 +52,7 @@ function extractEndpoint(n) {
 
 /* ===== FILTERS ===== */
 
-// protocol — только если это URI
+// Протокол — только если это URI
 function protocolAllowed(endpoint) {
   if (!endpoint.includes("://")) return true; // URL пропускаем
   return ALLOWED_PROTOCOLS.some(p => endpoint.startsWith(p + "://"));
@@ -64,34 +69,22 @@ function qualityAllowed(n) {
   return true;
 }
 
-/* ===== SERVICE HEURISTICS (SOURCE-LEVEL) ===== */
+/* ===== SERVICE HEURISTICS (SOFT) ===== */
 
 function netflixAllowed(n) {
   const t = textOf(n);
-  return (
-    !t.includes("trial") &&
-    !t.includes("free") &&
-    !t.includes("edu")
-  );
+  return !t.includes("trial") && !t.includes("free") && !t.includes("edu");
 }
 
 function chatgptAllowed(n) {
   const t = textOf(n);
-  return (
-    !t.includes("cdn") &&
-    !t.includes("cloudflare") &&
-    !t.includes("ws") &&
-    !t.includes("grpc")
-  );
+  return !t.includes("cdn") && !t.includes("cloudflare");
 }
 
 function robloxAllowed(n) {
   if (typeof n.latency === "number" && n.latency > 350) return false;
   const t = textOf(n);
-  return (
-    !t.includes("cdn") &&
-    !t.includes("cloudflare")
-  );
+  return !t.includes("cdn") && !t.includes("cloudflare");
 }
 
 /* ===== MAIN ===== */
@@ -103,11 +96,11 @@ async function run() {
   if (!res.ok) throw new Error(`Worker fetch failed: ${res.status}`);
 
   const json = await res.json();
-  if (!json || !Array.isArray(json.items))
-    throw new Error("Invalid worker format");
+  if (!json || !Array.isArray(json.items)) {
+    throw new Error("Invalid worker response format (items[])");
+  }
 
   const nodes = json.items;
-
   const accepted = [];
 
   for (const n of nodes) {
@@ -116,22 +109,34 @@ async function run() {
     if (!protocolAllowed(ep)) continue;
     if (!countryAllowed(n)) continue;
     if (!qualityAllowed(n)) continue;
-    if (!(netflixAllowed(n) || chatgptAllowed(n) || robloxAllowed(n))) continue;
+
+    // soft service gate (не жёсткий)
+    if (
+      !(
+        netflixAllowed(n) ||
+        chatgptAllowed(n) ||
+        robloxAllowed(n)
+      )
+    ) continue;
+
     accepted.push(ep);
   }
 
-  console.log(`✔ Sources: ${nodes.length} → ${accepted.length}`);
+  // FAIL-SAFE: если всё отфильтровали — берём хотя бы 1 лучший
+  if (accepted.length === 0 && nodes.length > 0) {
+    const fallback = extractEndpoint(nodes[0]);
+    if (fallback) {
+      console.warn("⚠ FAIL-SAFE: using single fallback endpoint");
+      accepted.push(fallback);
+    }
+  }
+
+  console.log(`✔ Nodes: ${nodes.length} → ${accepted.length}`);
 
   const outDir = path.join(process.cwd(), "dist");
   fs.mkdirSync(outDir, { recursive: true });
 
   const outFile = path.join(outDir, "subscription.txt");
-
-  if (accepted.length === 0) {
-    console.warn("⚠ NO_URL: no sources passed filters");
-    fs.writeFileSync(outFile, "", "utf8");
-    return;
-  }
 
   const plain = accepted.join("\n");
   const base64 = Buffer.from(plain, "utf8").toString("base64");
