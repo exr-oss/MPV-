@@ -1,32 +1,28 @@
-name: Update Subscription
+name: Update VPN Subscription
 
 on:
   schedule:
-    - cron: "*/30 * * * *"   # каждые 30 минут
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 jobs:
-  update:
+  build:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Fetch from Worker
+      - name: Fetch subscription from Worker
         run: |
           mkdir -p dist
           curl -fsSL https://collector-b.zenyamail88.workers.dev/export/json \
             | jq -r '.items[]' > dist/subscription.txt
 
-      - name: Encode Base64
+      - name: Commit and push if changed
         run: |
-          base64 dist/subscription.txt > dist/subscription.b64
-
-      - name: Commit & push
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add dist/subscription.txt dist/subscription.b64
-          git commit -m "auto: update subscription" || exit 0
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add dist/subscription.txt
+          git diff --cached --quiet || git commit -m "update subscription"
           git push
