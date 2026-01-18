@@ -273,8 +273,6 @@ ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpvWklvQTY5UTh5aGNRVjhrYTNQYTNB@45.158.171.70:
 trojan://RPyW62_b9aH.ztJKeArou@83.143.87.9:18581/?type=tcp&security=tls&allowInsecure=1#%E2%9C%8598%40oneclickvpnkeys
 ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpvWklvQTY5UTh5aGNRVjhrYTNQYTNB@193.29.139.150:8080#The+Netherlands
 vless://e4824193-4f54-453b-d037-88368e85ef0e@104.21.86.253:443/?type=grpc&encryption=none&flow=&security=tls&sni=pqh27v1.carwashipdir.shop&allowInsecure=1#%F0%9F%A7%B841%40oneclickvpnkeys
-ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpwUW1uQzAzSk9iYlBoZGg1RkJKSGdENmpuVExjaHNSQQ@95.164.116.33:443#%F0%9F%87%BA%F0%9F%87%B2telegram%20%E2%9E%A0%20%40v2rayNG_Matsuri
-vless://57ba2ab1-a283-42eb-82ee-dc3561a805b8@104.21.3.219:8443?path=%2F57ba2ab1&security=tls&encryption=none&host=ovhwuxian.pai50288.uk&fp=chrome&type=ws&sni=ovhwuxian.pai50288.uk#Channel%20id%3A%20%40@proxy_kafee%20%F0%9F%87%A8%F0%9F%87%A6
 ss://YWVzLTEyOC1nY206OTM0OTg1MzktNzgzOC00ODM2LWI5YjMtODMxMWZmYzc5YmNm@82.180.146.173:35652#@meli_proxyy
 vless://310c8c17-6cd3-44eb-9ab0-f8f5dbac7976@9f.startrich.site:8441?security=none&encryption=none&type=ws#@meli_proxyy
 vless://ec8a65ad-aafc-4095-9b8c-ea10890ca629@154.92.9.46:443?encryption=none&security=tls&sni=simorgh.hpcode.ir&fp=firefox&type=ws&host=simorgh.hpcode.ir&path=%2FJavid-SHAH-KingRezaPahlavi%2F%3Fed%3D%40vpnserverrr_vpnserverrr_vpnserverrr#%40Daily_Configs
