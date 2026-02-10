@@ -396,6 +396,8 @@ trojan://BxceQaOe@203.198.123.162:443?sni=t.me/ripaojiedian#%F0%9F%87%AD%F0%9F%8
 trojan://5fb072e0ddd631cf66cf752b09210480@160.16.124.17:544?sni=www.nintendogames.net#%F0%9F%87%B8%F0%9F%87%ACSG%E6%96%B0%E5%8A%A0%E5%9D%A13
 trojan://humanity@www.calmlunch.com:443?security=tls&type=ws&sni=www.calmlunch.com&path=/assignment&host=www.calmlunch.com#%E6%9C%AA%E7%9F%A527
 trojan://4df6304c-39f9-4cc2-9d64-e7cba3fc12e4@green2.cdntencentmusic.com:35501?sni=green2.cdntencentmusic.com#%F0%9F%87%B9%F0%9F%87%BCTW%E5%8F%B0%E6%B9%BE2
+hysteria2://b4bd0613-ff7c-4f2f-954d-185915e6ddad@5.175.249.174:35000/?obfs=salamander&obfs-password=%40JavidnamanIran-Javid-SHAH-KingRezaPahlavi&sni=api.kermanshahi.org#%F0%9F%9A%8094@proxy_kafee
+hysteria2://b4bd0613-ff7c-4f2f-954d-185915e6ddad@5.175.249.174:35000?sni=api.kermanshahi.org&obfs=salamander&obfs-password=%40JavidnamanIran-Javid-SHAH-KingRezaPahlavi&insecure=0#%F0%9F%94%A5%20Telegram%3A%20%40wiki_tajrobe
 vless://bf3e8944-8d26-47de-8748-b9aa74cce974@140.238.100.35:40721/?type=tcp&encryption=none&flow=&sni=yahoo.com&fp=chrome&security=reality&pbk=TUZgwzcTvoROSbgnqMh3WorXVMxQNIF2zsEM39FQbyk&sid=df8611c07d#%F0%9F%92%A76%40oneclickvpnkeys
 vless://11beaf11-726d-4c11-8ce9-27308c1c608c@157.173.127.225:443?security=reality&encryption=none&pbk=v3EwzA9RIIh5Ndxm-gypRY6RCJhOpQ-2WO7KaH8nsC8&headerType=none&fp=random&type=tcp&sni=analytics.google.com&sid=eab26c4a32#%40meli_proxyy
 vless://d93d7da2-6c2c-4fc6-bc2a-1da9cef60793@104.18.26.90:2096?encryption=none&security=tls&sni=638874929583412911.zagreb-prx-dnraaad.info&type=ws&alpn=h3h2&host=638874929583412911.zagreb-prx-dnraaad.info&path=/ohfqcwws#@meli_proxyy
